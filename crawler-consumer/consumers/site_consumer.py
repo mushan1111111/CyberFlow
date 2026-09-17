@@ -413,20 +413,31 @@ class SiteConsumer(BaseConsumer):
                          _json_array(r.get("cat_names")), r.get("site_tag", 0),
                          r.get("last_submitted_at"), r.get("domain_applied_at"), r.get("created_at")),
                     )
-                await cur.executemany(
-                    """UPDATE orders o
-                       JOIN site_info s ON LOWER(CASE WHEN LEFT(TRIM(o.product_host), 4)='www.'
-                           THEN SUBSTRING(TRIM(o.product_host), 5) ELSE TRIM(o.product_host) END)
-                           = LOWER(CASE WHEN LEFT(TRIM(s.site_domain), 4)='www.'
-                           THEN SUBSTRING(TRIM(s.site_domain), 5) ELSE TRIM(s.site_domain) END)
-                       SET o.admin_name=s.admin_name,
-                           o.theme_name=s.theme_name,
-                           o.product_category=s.product_category,
-                           o.site_tag=s.site_tag
-                       WHERE LOWER(CASE WHEN LEFT(TRIM(s.site_domain), 4)='www.'
-                           THEN SUBSTRING(TRIM(s.site_domain), 5) ELSE TRIM(s.site_domain) END)=%s""",
-                    [(domain,) for domain in normalized],
-                )
+                # await cur.executemany(
+                #     """UPDATE orders o
+                #        JOIN site_info s ON LOWER(CASE WHEN LEFT(TRIM(o.product_host), 4)='www.'
+                #            THEN SUBSTRING(TRIM(o.product_host), 5) ELSE TRIM(o.product_host) END)
+                #            = LOWER(CASE WHEN LEFT(TRIM(s.site_domain), 4)='www.'
+                #            THEN SUBSTRING(TRIM(s.site_domain), 5) ELSE TRIM(s.site_domain) END)
+                #        SET o.admin_name=s.admin_name,
+                #            o.theme_name=s.theme_name,
+                #            o.product_category=s.product_category,
+                #            o.site_tag=s.site_tag
+                #        WHERE LOWER(CASE WHEN LEFT(TRIM(s.site_domain), 4)='www.'
+                #            THEN SUBSTRING(TRIM(s.site_domain), 5) ELSE TRIM(s.site_domain) END)=%s""",
+                #     [(domain,) for domain in normalized],
+                # )
+                await cur.execute(
+                        """UPDATE orders o
+                        JOIN site_info s ON LOWER(CASE WHEN LEFT(TRIM(o.product_host), 4)='www.'
+                            THEN SUBSTRING(TRIM(o.product_host), 5) ELSE TRIM(o.product_host) END)
+                            = LOWER(CASE WHEN LEFT(TRIM(s.site_domain), 4)='www.'
+                            THEN SUBSTRING(TRIM(s.site_domain), 5) ELSE TRIM(s.site_domain) END)
+                        SET o.admin_name=s.admin_name,
+                            o.theme_name=s.theme_name,
+                            o.product_category=s.product_category,
+                            o.site_tag=s.site_tag"""
+                    )
                 deleted_history, deleted_sites = await self._delete_inactive_sites(cur)
         return deleted_sites, deleted_history
 

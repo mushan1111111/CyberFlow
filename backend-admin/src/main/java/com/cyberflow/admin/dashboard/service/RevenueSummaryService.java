@@ -98,7 +98,27 @@ public class RevenueSummaryService {
             }
         }
 
+        // Leaders (configured in leaderConfig) build batch sites only. Some of
+        // their sites are still tagged as single builds because of data
+        // quality, so the leader's own paid amount is counted as batch-site
+        // revenue in full and feeds the batch commission tiers.
+        // Amount synchronized from interns is untouched: it keeps whatever
+        // site tag the intern's orders carry.
+        Set<String> leaderNames = new HashSet<>();
+        for (String leader : leaderMap.values()) {
+            leaderNames.add(realName(leader, mergeMap));
+        }
+        for (PersonStats person : people.values()) {
+            if (leaderNames.contains(person.realName)) {
+                person.batchSiteCount = person.siteCount;
+                person.batchSiteAmount = person.originalAmount;
+            }
+        }
+
         List<Map<String, Object>> personal = new ArrayList<>();
+        // Leader summary adds the leader's own personal commission (regular +
+        // batch) on top of the group commission, keyed by normalized real name.
+        Map<String, BigDecimal> personalCommissionByName = new HashMap<>();
         for (PersonStats person : people.values()) {
             BigDecimal successAmount = person.originalAmount.add(person.syncedAmount);
             BigDecimal batchSiteAmount = person.batchSiteAmount.add(person.syncedBatchSiteAmount);
@@ -108,6 +128,8 @@ public class RevenueSummaryService {
             BigDecimal batchCommissionRate = batchSiteCommissionRate(batchCommissionBase);
             BigDecimal batchCommission = batchCommissionBase.multiply(batchCommissionRate);
             BigDecimal totalCommission = regularCommission.add(batchCommission);
+            personalCommissionByName.put(person.realName,
+                    person.commissionEligible ? totalCommission : BigDecimal.ZERO);
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("user_group", String.join(",", person.groups));
             item.put("real_name", person.realName);
@@ -168,10 +190,15 @@ public class RevenueSummaryService {
                 BigDecimal commissionBaseAmount = originalAmount.subtract(leaderPersonalAmount).max(BigDecimal.ZERO);
                 long sites = members.stream().mapToLong(a -> a.siteCount).sum();
                 long orders = number(groupTotals.get("total_orders")).longValue();
-                BigDecimal leaderCommission = commissionBaseAmount
+                BigDecimal leaderTeamCommission = commissionBaseAmount
                         .multiply(decimal(config.get("exchangeRate"), "6.73"))
                         .multiply(decimal(config.get("rateFactor"), "0.42"))
                         .multiply(decimal(config.get("leaderCommissionRate"), "0.02"));
+                // The leader also earns their own personal commission computed
+                // in the personal-performance section (regular + batch tiers).
+                BigDecimal leaderOwnCommission = personalCommissionByName.getOrDefault(
+                        realName(leaderName, mergeMap), BigDecimal.ZERO);
+                BigDecimal leaderCommission = leaderTeamCommission.add(leaderOwnCommission);
                 Map<String, Object> item = new LinkedHashMap<>();
                 item.put("user_group", group);
                 item.put("leader_name", leaderName);
@@ -183,6 +210,8 @@ public class RevenueSummaryService {
                 item.put("leader_personal_amount", money(leaderPersonalAmount));
                 item.put("commission_base_amount", money(commissionBaseAmount));
                 item.put("conversion_rate", percent(orders, sites));
+                item.put("leader_team_commission_rmb", money(leaderTeamCommission));
+                item.put("leader_own_commission_rmb", money(leaderOwnCommission));
                 item.put("leader_commission_rmb", money(leaderCommission));
                 leaders.add(item);
             }
