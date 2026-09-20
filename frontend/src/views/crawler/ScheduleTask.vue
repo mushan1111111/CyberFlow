@@ -122,11 +122,12 @@ const canTrigger = computed(() => userStore.hasPermission('crawler:schedule:trig
 let refreshTimer = null
 let disposed = false
 
-const taskNames = { site_crawl: '站点信息', order_crawl: '订单数据', site_index: '搜索收录' }
+const taskNames = { site_crawl: '站点信息', order_crawl: '订单数据', site_index: '搜索收录', site_account: '站点账号同步' }
 const taskDescriptions = {
   site_crawl: '同步站点、分类、标签及所属分组',
   order_crawl: '按数据库站点分组同步支付订单',
   site_index: '更新站点搜索引擎收录结果',
+  site_account: '用每个人自己的账号同步其本人站点的主题与分类（每周一次）',
 }
 
 function taskName(taskType) { return taskNames[taskType] || taskType }

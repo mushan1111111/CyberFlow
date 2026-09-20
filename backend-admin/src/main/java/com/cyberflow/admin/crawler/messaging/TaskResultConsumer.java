@@ -2,6 +2,8 @@ package com.cyberflow.admin.crawler.messaging;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cyberflow.admin.crawler.config.RabbitMQConfig;
+import com.cyberflow.admin.crawler.siteaccount.entity.SiteAccountSync;
+import com.cyberflow.admin.crawler.siteaccount.mapper.SiteAccountSyncMapper;
 import com.cyberflow.admin.crawler.task.entity.CrawlCursor;
 import com.cyberflow.admin.crawler.task.entity.TaskHistory;
 import com.cyberflow.admin.crawler.task.mapper.CrawlCursorMapper;
@@ -41,6 +43,9 @@ public class TaskResultConsumer {
 
     /** 爬取光标映射器，用于更新增量爬取的断点位置 */
     private final CrawlCursorMapper cursorMapper;
+
+    /** 个人站点账号配置映射器，用于回写最近一次同步结果 */
+    private final SiteAccountSyncMapper accountMapper;
 
     /**
      * 处理爬虫任务执行结果。
@@ -116,5 +121,34 @@ public class TaskResultConsumer {
                 }
             }
         }
+
+        // Personal site-account syncs keep their own last-run summary so the
+        // owner can see whether their own credential still works.
+        if (history != null && "site_account".equals(history.getType())) {
+            recordPersonalSyncResult(history, result, status);
+        }
+    }
+
+    private void recordPersonalSyncResult(TaskHistory history, Map<String, Object> result, String status) {
+        String scope = history.getTriggeredBy();
+        if (scope == null || !scope.startsWith("account-")) return;
+        Long accountId;
+        try {
+            accountId = Long.parseLong(scope.substring("account-".length()));
+        } catch (NumberFormatException ex) {
+            return;
+        }
+        SiteAccountSync account = accountMapper.selectById(accountId);
+        if (account == null) return;
+        account.setLastSyncedAt(LocalDateTime.now());
+        account.setLastStatus("success".equals(status) ? "SUCCESS" : "FAILED");
+        Object rows = result.get("rows_affected");
+        String detail = rows == null ? "" : "更新 " + rows + " 个站点";
+        Object error = result.get("error");
+        if (error != null && !String.valueOf(error).isBlank()) {
+            detail = String.valueOf(error);
+        }
+        account.setLastMessage(detail.length() > 255 ? detail.substring(0, 255) : detail);
+        accountMapper.updateById(account);
     }
 }

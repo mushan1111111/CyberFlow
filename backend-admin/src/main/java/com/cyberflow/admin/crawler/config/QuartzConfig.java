@@ -1,6 +1,7 @@
 package com.cyberflow.admin.crawler.config;
 
 import com.cyberflow.admin.crawler.scheduler.OrderCrawlJob;
+import com.cyberflow.admin.crawler.scheduler.SiteAccountSyncJob;
 import com.cyberflow.admin.crawler.scheduler.SiteCrawlJob;
 import com.cyberflow.admin.crawler.scheduler.SiteIndexCrawlJob;
 import org.quartz.*;
@@ -38,6 +39,10 @@ public class QuartzConfig {
 
     @Value("${cyberflow.crawler.index-cron}")
     private String indexCron;
+
+    /** 个人站点账号同步的 cron 表达式，默认每周一凌晨执行一次 */
+    @Value("${cyberflow.crawler.site-account-cron}")
+    private String siteAccountCron;
 
     /**
      * 创建站点爬取任务的 JobDetail，设置为持久化存储。
@@ -107,6 +112,23 @@ public class QuartzConfig {
                 .forJob(orderCrawlJobDetail())
                 .withIdentity("orderCrawlTrigger")
                 .withSchedule(CronScheduleBuilder.cronSchedule(orderCron))
+                .build();
+    }
+
+    @Bean
+    public JobDetail siteAccountSyncJobDetail() {
+        return JobBuilder.newJob(SiteAccountSyncJob.class)
+                .withIdentity("siteAccountSyncJob")
+                .storeDurably()
+                .build();
+    }
+
+    @Bean
+    public Trigger siteAccountSyncTrigger() {
+        return TriggerBuilder.newTrigger()
+                .forJob(siteAccountSyncJobDetail())
+                .withIdentity("siteAccountSyncTrigger")
+                .withSchedule(CronScheduleBuilder.cronSchedule(siteAccountCron))
                 .build();
     }
 }

@@ -332,6 +332,7 @@ public class CrawlerConfigService {
             case "site_crawl" -> "siteCrawlTrigger";
             case "site_index" -> "siteIndexCrawlTrigger";
             case "order_crawl" -> "orderCrawlTrigger";
+            case "site_account" -> "siteAccountSyncTrigger";
             default -> null;
         };
         if (triggerName == null) {
@@ -454,6 +455,9 @@ public class CrawlerConfigService {
     private String defaultCron(String taskType) {
         return switch (taskType) {
             case "site_index" -> "0 0 0 * * ?";
+            // Personal site sync is expensive (one login per member), so the
+            // weekly default keeps it off the daily critical path.
+            case "site_account" -> "0 30 3 ? * MON";
             case "site_crawl", "order_crawl" -> "0 0 */6 * * ?";
             default -> "0 0 */6 * * ?";
         };

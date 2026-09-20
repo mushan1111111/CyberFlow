@@ -39,6 +39,7 @@ const routes = [
       { path: 'crawler/site', name: 'CrawlerSite', component: () => import('@/views/crawler/SiteCrawler.vue'), meta: { title: '站点、收录与订单同步', section: '数据同步', description: '统一同步站点资料、搜索引擎收录和支付订单', perms: ['crawler:site:start', 'crawler:collect:start', 'crawler:order:view', 'crawler:order:start', 'crawler:order:config'] } },
       { path: 'crawler/collect', redirect: '/crawler/site' },
       { path: 'crawler/order', redirect: '/crawler/site' },
+      { path: 'crawler/site-account', name: 'SiteAccountSync', component: () => import('@/views/crawler/SiteAccountSync.vue'), meta: { title: '站点账号同步', section: '数据同步', description: '用个人建站平台账号同步本人站点的主题与分类', perm: 'crawler:site:sync' } },
       { path: 'crawler/revenue-config', name: 'CrawlerRevenueConfig', component: () => import('@/views/crawler/RevenueConfig.vue'), meta: { title: '收入参数', section: '数据同步', description: '维护汇率、折算系数与人员归属映射', perm: 'crawler:revenue:view' } },
       { path: 'crawler/history', name: 'CrawlerHistory', component: () => import('@/views/crawler/TaskHistory.vue'), meta: { title: '任务历史', section: '数据同步', description: '统一追踪同步与商品采集任务的执行结果', perm: 'crawler:history:view' } },
       { path: 'crawler/schedule', name: 'CrawlerSchedule', component: () => import('@/views/crawler/ScheduleTask.vue'), meta: { title: '计划任务', section: '数据同步', description: '统一管理爬虫任务的自动执行计划', perm: 'crawler:schedule:view' } },

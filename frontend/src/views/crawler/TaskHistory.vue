@@ -33,6 +33,7 @@
           <el-radio-button value="site_crawl">站点（{{ counts.site_crawl || 0 }}）</el-radio-button>
           <el-radio-button value="site_index">收录（{{ counts.site_index || 0 }}）</el-radio-button>
           <el-radio-button value="order_crawl">订单（{{ counts.order_crawl || 0 }}）</el-radio-button>
+          <el-radio-button value="site_account">账号同步（{{ counts.site_account || 0 }}）</el-radio-button>
           <el-radio-button v-if="userStore.hasPermission('dashboard:product:view')" value="product_crawl">商品（{{ counts.product_crawl || 0 }}）</el-radio-button>
         </el-radio-group>
         <div class="filter-fields">
@@ -56,12 +57,13 @@
           <div class="task-meta">{{ formatDate(row.createdAt) }} · {{ triggerLabel(row) }}</div>
         </template>
       </el-table-column>
-      <el-table-column prop="type" label="类型" width="100">
+      <el-table-column prop="type" label="类型" width="118">
         <template #default="{ row }">
           <el-tag v-if="row.type === 'site_crawl'" type="primary">站点爬虫</el-tag>
           <el-tag v-else-if="row.type === 'site_index'" type="success">收录统计</el-tag>
           <el-tag v-else-if="row.type === 'order_crawl'" type="warning">订单爬虫</el-tag>
           <el-tag v-else-if="row.type === 'product_crawl'">商品爬虫</el-tag>
+          <el-tag v-else-if="row.type === 'site_account'" type="primary" effect="plain">站点账号同步</el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="status" label="状态" width="160">
@@ -96,7 +98,7 @@
             link type="success" size="small" @click="handleResume(row)"
           >继续</el-button>
           <el-button
-            v-if="['site_crawl', 'site_index', 'order_crawl', 'product_crawl'].includes(row.type)"
+            v-if="['site_crawl', 'site_index', 'order_crawl', 'product_crawl', 'site_account'].includes(row.type)"
             link
             type="primary"
             @click="openLog(row)"
@@ -171,7 +173,7 @@ const statusFilter = ref('')
 const keyword = ref('')
 const appliedKeyword = ref('')
 const autoRefresh = ref(true)
-const counts = reactive({ all: 0, site_crawl: 0, site_index: 0, order_crawl: 0, product_crawl: 0 })
+const counts = reactive({ all: 0, site_crawl: 0, site_index: 0, order_crawl: 0, product_crawl: 0, site_account: 0 })
 const overview = reactive({ total: 0, active: 0, successToday: 0, failedToday: 0 })
 const userStore = useUserStore()
 const logVisible = ref(false)
@@ -246,7 +248,7 @@ async function loadSummary() {
     Object.assign(counts, res.data || {})
   } catch {
     // The task list should remain usable when the summary endpoint is unavailable.
-    Object.assign(counts, { all: 0, site_crawl: 0, site_index: 0, order_crawl: 0, product_crawl: 0 })
+    Object.assign(counts, { all: 0, site_crawl: 0, site_index: 0, order_crawl: 0, product_crawl: 0, site_account: 0 })
   }
 }
 
@@ -315,6 +317,7 @@ function taskTypeLabel(type) {
     site_index: '收录统计',
     order_crawl: '订单爬取',
     product_crawl: '商品爬取',
+    site_account: '站点账号同步',
   }[type] || '采集任务'
 }
 
@@ -332,6 +335,7 @@ function formatDuration(value) {
 
 function triggerLabel(row) {
   if (row.triggerType === 'cron') return '自动计划'
+  if (row.triggeredBy?.startsWith('account-')) return `手动 · 站点账号#${row.triggeredBy.slice('account-'.length)}`
   if (row.triggeredBy) return `手动 · ${row.triggeredBy}`
   return '手动触发'
 }

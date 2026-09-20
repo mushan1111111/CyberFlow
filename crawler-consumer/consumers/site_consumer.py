@@ -73,6 +73,9 @@ class SiteConsumer(BaseConsumer):
         if message.get("type") == "site_index":
             await self._process_site_index(task_id, payload)
             return
+        if message.get("type") == "site_account":
+            await self._process_site_account(task_id, payload)
+            return
 
         # 从 payload 中提取增量游标——上次更新时间
         requested_since = payload.get("cursor", {}).get("last_updated_at")
@@ -152,6 +155,149 @@ class SiteConsumer(BaseConsumer):
             raise
         finally:
             await self.repo.close()
+
+    async def _process_site_account(self, task_id: str, payload: dict):
+        """Merge theme/category for one member's own sites.
+
+        site/site/list only returns theme_name / product_category for the
+        account that is currently logged in, so the global crawl cannot fill
+        those fields for everybody.  This job logs in with the member's own
+        credentials and merges only the rows that account can see.  It never
+        deletes anything: site_info stays an authoritative mirror owned by the
+        full site crawl.
+        """
+        await self.repo.connect()
+        start = time.monotonic()
+        try:
+            await self.repo.reset_task_log(task_id)
+            platform = payload.get("platform", {})
+            strategy = payload.get("strategy", {})
+            username = str(platform.get("username") or "").strip()
+            password = str(platform.get("password") or "").strip()
+            await self.append_task_log(self.repo, task_id, f"个人站点同步开始：账号={username or '未配置'}")
+            if not username or not password:
+                raise RuntimeError("未配置个人站点账号或密码，无法同步")
+            await self.repo.wait_for_task_control(task_id)
+            await self.repo.update_task_status(
+                task_id, "RUNNING", progress=10, progress_message="正在用个人账号连接站点管理平台"
+            )
+
+            crawler = AsyncSiteCrawler(
+                platform.get("baseUrl") or platform.get("base_url") or ADMIN_API_BASE_URL,
+                username,
+                password,
+                verify_ssl=_as_bool(platform.get("verifySsl", VERIFY_SSL)),
+                page_size=int(strategy.get("pageSize", 100)),
+                site_map_only=True,
+            )
+            await self.append_task_log(self.repo, task_id, "个人账号登录成功，正在拉取可见站点")
+            await self.repo.update_task_progress(task_id, 35, "正在拉取本人站点数据")
+            records, _ = await crawler.run(since=None)
+
+            owner_name = str(payload.get("owner_name") or "").strip()
+            if owner_name:
+                scoped = [r for r in records if str(r.get("admin_name") or "").strip() == owner_name]
+                # A stale owner mapping must not silently discard a working sync.
+                if scoped:
+                    records = scoped
+                else:
+                    await self.append_task_log(
+                        self.repo, task_id,
+                        f"未匹配到负责人「{owner_name}」的站点，按平台返回的可见站点处理",
+                    )
+
+            if not records:
+                raise RuntimeError("该账号未返回任何站点数据，请确认账号密码是否正确、账号下是否有已建站站点")
+            await self.append_task_log(self.repo, task_id, f"站点数据拉取完成：获取 {len(records)} 条")
+
+            await self.repo.update_task_progress(task_id, 75, f"正在合并 {len(records)} 条站点记录")
+            await self.append_task_log(self.repo, task_id, f"开始合并 {len(records)} 条站点记录")
+            rows_affected = await self._merge_site_info(records)
+            await self.append_task_log(self.repo, task_id, f"合并完成：处理 {rows_affected} 个站点（仅更新，不删除）")
+
+            duration_ms = int((time.monotonic() - start) * 1000)
+            await self.repo.update_task_status(
+                task_id, "SUCCESS", rows_affected=rows_affected, duration_ms=duration_ms
+            )
+            self._publish_result(task_id, "success", rows_affected, None, duration_ms)
+            await self.append_task_log(
+                self.repo, task_id, f"个人站点同步成功：处理 {rows_affected} 个站点，耗时 {duration_ms} ms"
+            )
+            logger.success(f"✅ Site account sync done: {rows_affected} records")
+        except TaskCancelledError as e:
+            await self.append_task_log(self.repo, task_id, f"个人站点同步已取消：{e}")
+            logger.info(f"⏹️ Site account sync cancelled by operator: {task_id} ({e})")
+            return
+        except Exception as e:
+            duration_ms = int((time.monotonic() - start) * 1000)
+            await self.append_task_log(self.repo, task_id, f"个人站点同步失败：{e}")
+            await self.repo.update_task_status(
+                task_id, "FAILED", error_msg=str(e), duration_ms=duration_ms
+            )
+            self._publish_result(task_id, "failed", 0, None, duration_ms, str(e))
+            logger.error(f"❌ Site account sync failed: {e}")
+            raise
+        finally:
+            await self.repo.close()
+
+    async def _merge_site_info(self, records: list[dict]) -> int:
+        """Upsert the member's own rows without touching anyone else's data.
+
+        Only non-empty remote values overwrite local ones, so a partial
+        personal response can never blank out fields the global crawl filled.
+        """
+        normalized = {
+            normalize_domain(r.get("site_domain")): r
+            for r in records if normalize_domain(r.get("site_domain"))
+        }
+        if not normalized:
+            return 0
+
+        async with self.repo.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                for domain, r in normalized.items():
+                    await cur.execute(
+                        """INSERT INTO site_info (username, builder_username, site_domain, server_name, server_ip, admin_name, user_group,
+                           theme_name, product_category, cat_names, site_tag, last_submitted_at, domain_applied_at, created_at)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                           ON DUPLICATE KEY UPDATE
+                             builder_username=COALESCE(NULLIF(VALUES(builder_username), ''), builder_username),
+                             server_name=COALESCE(NULLIF(VALUES(server_name), ''), server_name),
+                             server_ip=COALESCE(NULLIF(VALUES(server_ip), ''), server_ip),
+                             admin_name=COALESCE(NULLIF(VALUES(admin_name), ''), admin_name),
+                             user_group=COALESCE(NULLIF(site_info.user_group, ''), NULLIF(VALUES(user_group), '')),
+                             theme_name=COALESCE(NULLIF(VALUES(theme_name), ''), theme_name),
+                             product_category=COALESCE(NULLIF(VALUES(product_category), ''), product_category),
+                             cat_names=CASE
+                                 WHEN VALUES(cat_names) IS NULL OR JSON_LENGTH(VALUES(cat_names)) = 0 THEN cat_names
+                                 ELSE VALUES(cat_names) END,
+                             -- A personal response may omit the tag; only upgrade
+                             -- it, never downgrade a known batch/copy site to 0.
+                             site_tag=CASE WHEN VALUES(site_tag) > 0 THEN VALUES(site_tag) ELSE site_tag END,
+                             last_submitted_at=COALESCE(VALUES(last_submitted_at), last_submitted_at),
+                             domain_applied_at=COALESCE(VALUES(domain_applied_at), domain_applied_at),
+                             created_at=COALESCE(VALUES(created_at), created_at)""",
+                        (r.get("username"), r.get("builder_username"), domain, r.get("server_name"),
+                         r.get("server_ip"), r.get("admin_name"),
+                         r.get("user_group"), r.get("theme_name"), r.get("product_category"),
+                         _json_array(r.get("cat_names")), r.get("site_tag", 0),
+                         r.get("last_submitted_at"), r.get("domain_applied_at"), r.get("created_at")),
+                    )
+                await cur.executemany(
+                    """UPDATE orders o
+                       JOIN site_info s ON LOWER(CASE WHEN LEFT(TRIM(o.product_host), 4)='www.'
+                           THEN SUBSTRING(TRIM(o.product_host), 5) ELSE TRIM(o.product_host) END)
+                           = LOWER(CASE WHEN LEFT(TRIM(s.site_domain), 4)='www.'
+                           THEN SUBSTRING(TRIM(s.site_domain), 5) ELSE TRIM(s.site_domain) END)
+                       SET o.admin_name=s.admin_name,
+                           o.theme_name=s.theme_name,
+                           o.product_category=s.product_category,
+                           o.site_tag=s.site_tag
+                       WHERE LOWER(CASE WHEN LEFT(TRIM(s.site_domain), 4)='www.'
+                           THEN SUBSTRING(TRIM(s.site_domain), 5) ELSE TRIM(s.site_domain) END)=%s""",
+                    [(domain,) for domain in normalized],
+                )
+        return len(normalized)
 
     async def _process_site_index(self, task_id: str, payload: dict):
         """Fetch and persist today's indexing snapshot for every remote site."""

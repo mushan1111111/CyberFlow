@@ -105,6 +105,38 @@ public class TaskMessagePublisher {
     }
 
     /**
+     * 发布「个人站点账号」同步任务消息。
+     * <p>
+     * 与全局 site_crawl 的区别：采集端用消息里 person 自己的账号登录建站平台，
+     * 只处理该账号可见的站点，并且只做字段合并、不做镜像删除，
+     * 从而补齐 site/site/list 受权限限制拿不到的主题与分类。
+     * </p>
+     *
+     * @param platform  连接信息（用户名/密码已被替换为该成员自己的账号）
+     * @param strategy  站点分页等策略
+     * @param ownerName 可选的负责人名称，用于把结果进一步限定在该成员名下
+     * @param trigger   触发方式
+     * @return 生成的任务唯一标识（UUID）
+     */
+    public String publishSiteAccountCrawl(String taskId, Map<String, Object> platform, Map<String, Object> strategy,
+                                          String ownerName, String trigger) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("platform", platform);
+        payload.put("strategy", strategy);
+        payload.put("owner_name", ownerName);
+        Map<String, Object> message = Map.of(
+            "task_id", taskId,
+            "type", "site_account",
+            "trigger", trigger,
+            "timestamp", Instant.now().toString(),
+            "payload", payload
+        );
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_TASKS, RabbitMQConfig.RK_SITE, message);
+        log.info("Published site account crawl task: {}", taskId);
+        return taskId;
+    }
+
+    /**
      * 发布订单爬取任务消息。
      *
      * @param maxOrderId 增量爬取的起始订单 ID（作为光标使用）

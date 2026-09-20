@@ -240,6 +240,16 @@ const menuTree = computed(() => {
       dashboardRoot.children.push(grantedPageNode)
     }
   }
+  // Same guard for the personal site-account page: the sync section is either
+  // regrouped below or returned as-is, so the node has to be in place before
+  // either branch runs.
+  const grantedAccountNode = findMenuNode(userStore.userInfo?.menus, '/crawler/site-account')
+  if (grantedAccountNode) {
+    const syncRoot = source.find(menu => menu.id === 2 || menu.menuName === '数据同步' || menu.menuName === '爬虫管理')
+    if (syncRoot && !syncRoot.children.some(child => child?.path === '/crawler/site-account')) {
+      syncRoot.children.push(grantedAccountNode)
+    }
+  }
 
   const crawlerMenu = source.find(menu => menu.id === 2 || menu.menuName === '爬虫管理')
   if (!crawlerMenu || crawlerMenu.menuName === '数据同步') {
@@ -250,7 +260,7 @@ const menuTree = computed(() => {
   const findCrawlerItem = (path, fallback) => crawlerChildren.find(item => item.path === path) || fallback
   const fallbackSync = fallbackMenus.find(menu => menu.id === 2)
   const fallbackProduct = fallbackMenus.find(menu => menu.id === 4)
-  const syncPaths = ['/crawler/site', '/crawler/history', '/crawler/schedule', '/crawler/revenue-config']
+  const syncPaths = ['/crawler/site', '/crawler/site-account', '/crawler/history', '/crawler/schedule', '/crawler/revenue-config']
   const productPaths = ['/crawler/site-config', '/crawler/selector-template']
   const groupedMenus = source.filter(menu => menu !== crawlerMenu && menu.id !== 4 && menu.menuName !== '商品采集')
   const crawlerIndex = Math.max(0, source.indexOf(crawlerMenu))

@@ -37,12 +37,16 @@ class AsyncSiteCrawler:
         skip_site_check: bool = True,
         fetch_admin_login_url: bool = False,
         filter_built_only: bool = False,
+        site_map_only: bool = False,
     ):
         """初始化 AsyncSiteCrawler。
 
         参数:
             username (str): 管理平台登录用户名
             password (str): 管理平台登录密码
+            site_map_only (bool): 只保留出现在 site/site/list 中的域名。
+                site/site/list 受账号权限限制，只返回当前登录账号名下的站点，
+                因此开启后即等价于「只处理这个账号自己的站点」。
         """
         self.base_url = base_url.rstrip("/")
         self.username = username
@@ -52,6 +56,7 @@ class AsyncSiteCrawler:
         self.skip_site_check = skip_site_check
         self.fetch_admin_login_url = fetch_admin_login_url
         self.filter_built_only = filter_built_only
+        self.site_map_only = site_map_only
         self.client: aiohttp.ClientSession | None = None
         self.token: str | None = None
 
@@ -220,19 +225,24 @@ class AsyncSiteCrawler:
                         "created_at": applied_at,
                     }
                     # 从站点映射中合并主题和分类信息
-                    if domain in site_map:
-                        record["theme_name"] = site_map[domain]["theme_name"]
-                        record["product_category"] = site_map[domain]["product_category"]
-                        record["builder_username"] = site_map[domain].get("builder_username") or ""
-                        record["server_name"] = record.get("server_name") or site_map[domain].get("server_name")
-                        record["server_ip"] = site_map[domain].get("server_ip") or ""
-                        record["created_at"] = site_map[domain].get("created_at") or applied_at
-                        record["cat_names"] = site_map[domain].get("cat_names") or []
-                        record["site_tag"] = site_map[domain].get("site_tag", 0)
+                    mapped = site_map.get(domain)
+                    if mapped:
+                        record["theme_name"] = mapped["theme_name"]
+                        record["product_category"] = mapped["product_category"]
+                        record["builder_username"] = mapped.get("builder_username") or ""
+                        record["server_name"] = record.get("server_name") or mapped.get("server_name")
+                        record["server_ip"] = mapped.get("server_ip") or ""
+                        record["created_at"] = mapped.get("created_at") or applied_at
+                        record["cat_names"] = mapped.get("cat_names") or []
+                        record["site_tag"] = mapped.get("site_tag", 0)
                         record["user_group"] = (
-                            site_map[domain].get("user_group")
+                            mapped.get("user_group")
                             or self._user_group(record.get("admin_name"))
                         )
+                    elif self.site_map_only:
+                        # Personal syncs may only touch rows the account can
+                        # actually see in site/site/list.
+                        continue
                     results.append(record)
                 if not self._has_next_page(data, len(items), page):
                     break

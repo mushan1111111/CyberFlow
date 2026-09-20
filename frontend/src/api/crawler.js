@@ -64,6 +64,25 @@ export function triggerCrawlerSchedule(taskType) {
   return request.post(`/admin/crawler/config/schedules/${taskType}/trigger`)
 }
 
+/** 个人站点账号同步：列出当前用户自己的账号配置。 */
+export function listSiteAccounts() {
+  return request.get('/admin/crawler/site-account')
+}
+
+/** 新增或更新一条个人站点账号配置。 */
+export function saveSiteAccount(data) {
+  return request.post('/admin/crawler/site-account', data)
+}
+
+export function deleteSiteAccount(id) {
+  return request.delete(`/admin/crawler/site-account/${id}`)
+}
+
+/** 用该账号触发一次只覆盖本人站点的同步。 */
+export function syncSiteAccount(id) {
+  return request.post(`/admin/crawler/site-account/${id}/sync`)
+}
+
 /**
  * 查询单个任务执行状态
  * @param {string} taskId - 任务唯一标识
