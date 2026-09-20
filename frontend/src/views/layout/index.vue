@@ -162,6 +162,14 @@ const canViewPath = path => {
   if (Array.isArray(requiredPermission)) return requiredPermission.some(permission => userStore.hasPermission(permission))
   return requiredPermission ? userStore.hasPermission(requiredPermission) : !userStore.userInfo?.menus?.length
 }
+const findMenuNode = (nodes, path) => {
+  for (const node of nodes || []) {
+    if (node?.path === path) return node
+    const child = findMenuNode(node?.children, path)
+    if (child) return child
+  }
+  return null
+}
 const visibleChildren = menu => (menu.children || []).filter(child => child && canViewPath(child.path))
 
 // The API can omit menus while a session is being refreshed. Keep navigation
@@ -222,6 +230,16 @@ const menuTree = computed(() => {
   dynamicSource.forEach(dynamicRoot => {
     if (!source.some(menu => menu.id === dynamicRoot.id || menu.menuName === dynamicRoot.menuName)) source.push(dynamicRoot)
   })
+  // Safety net: a page menu the server granted must stay reachable from the
+  // sidebar even when the server tree shape does not line up with the built-in
+  // fallback. Role assignment still decides whether the menu exists at all.
+  const grantedPageNode = findMenuNode(userStore.userInfo?.menus, '/dashboard/site-order-ranking')
+  if (grantedPageNode) {
+    const dashboardRoot = source.find(menu => menu.id === 1 || menu.menuName === '数据看板')
+    if (dashboardRoot && !dashboardRoot.children.some(child => child?.path === '/dashboard/site-order-ranking')) {
+      dashboardRoot.children.push(grantedPageNode)
+    }
+  }
 
   const crawlerMenu = source.find(menu => menu.id === 2 || menu.menuName === '爬虫管理')
   if (!crawlerMenu || crawlerMenu.menuName === '数据同步') {
