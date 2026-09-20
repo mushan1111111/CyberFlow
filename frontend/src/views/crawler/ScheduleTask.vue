@@ -18,8 +18,8 @@
       </div>
       <div class="metric-card">
         <span>最近同步完成</span>
-        <strong class="metric-time">{{ formatDate(overview.latestSuccessAt, '暂无记录') }}</strong>
-        <small>所有数据源最近成功时间</small>
+        <strong class="metric-time">{{ formatBeijingDateTime(overview.latestSuccessAt, '暂无记录') }}</strong>
+        <small>所有数据源最近成功时间（北京时间）</small>
       </div>
     </div>
 
@@ -38,7 +38,7 @@
       </template>
 
       <el-alert
-        title="Cron 使用 Quartz 六段格式（秒 分 时 日 月 星期）；有任务执行时状态每 8 秒自动刷新。"
+        title="Cron 使用北京时间和 Quartz 六段格式（秒 分 时 日 月 星期）；有任务执行时状态每 8 秒自动刷新。"
         type="info"
         :closable="false"
         show-icon
@@ -70,7 +70,7 @@
                 <el-tag size="small" :type="taskStatus(latestTask(row.taskType)).tone">
                   {{ taskStatus(latestTask(row.taskType)).label }}
                 </el-tag>
-                <span>{{ formatDate(latestTask(row.taskType).createdAt) }}</span>
+                <span>{{ formatBeijingDateTime(latestTask(row.taskType).createdAt) }}</span>
               </div>
               <div class="latest-result">{{ latestResult(latestTask(row.taskType)) }}</div>
             </template>
@@ -110,6 +110,7 @@ import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
 import { taskStatus } from '@/data/taskPresentation'
 import { getTaskOverview, listCrawlerSchedules, triggerCrawlerSchedule, updateCrawlerSchedule } from '@/api/crawler'
+import { formatBeijingDateTime } from '@/utils/dateTime'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -131,11 +132,6 @@ const taskDescriptions = {
 
 function taskName(taskType) { return taskNames[taskType] || taskType }
 function taskDescription(taskType) { return taskDescriptions[taskType] || '数据同步任务' }
-
-function formatDate(value, empty = '尚未执行') {
-  if (!value) return empty
-  return String(value).replace('T', ' ').slice(0, 19)
-}
 
 function cronDescription(expression) {
   const value = String(expression || '').trim()

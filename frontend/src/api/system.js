@@ -1,6 +1,6 @@
 /**
  * @fileoverview 系统管理 API 接口
- * @description 封装用户管理、角色管理、菜单管理和操作日志等后端接口。
+ * @description 封装用户、角色、菜单、通知配置和操作日志等后端接口。
  *              所有接口均通过 @/utils/request 封装的 axios 实例发送请求。
  */
 
@@ -44,3 +44,11 @@ export function deleteMenu(id) { return request.delete(`/admin/system/menu/${id}
 
 /** @param {Object} params - 查询参数 { page, size, username, module } */
 export function getLogs(params) { return request.get('/admin/system/log', { params }) }
+
+// ==================== 通知配置 ====================
+
+export function getNotificationChannels() { return request.get('/admin/system/notification') }
+export function createNotificationChannel(data) { return request.post('/admin/system/notification', data) }
+export function updateNotificationChannel(id, data) { return request.put(`/admin/system/notification/${id}`, data) }
+export function deleteNotificationChannel(id) { return request.delete(`/admin/system/notification/${id}`) }
+export function testNotificationChannel(id, data) { return request.post(`/admin/system/notification/${id}/test`, data) }

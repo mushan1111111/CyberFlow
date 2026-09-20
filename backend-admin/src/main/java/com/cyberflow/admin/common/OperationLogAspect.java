@@ -120,6 +120,9 @@ public class OperationLogAspect {
      * @return 对应的操作类型：CREATE / UPDATE / DELETE / QUERY
      */
     private String inferOperation(String method, String url) {
+        if (url.contains("/system/notification/") && url.endsWith("/test")) {
+            return "TEST_NOTIFICATION";
+        }
         if (url.contains("/crawler/") && (url.endsWith("/start") || url.endsWith("/trigger"))) {
             return "TRIGGER_CRAWLER";
         }
@@ -148,6 +151,7 @@ public class OperationLogAspect {
     }
 
     private String inferTarget(String url) {
+        if (url.contains("/system/notification")) return "通知配置";
         if (url.contains("/system/user")) return "用户管理";
         if (url.contains("/system/role")) return "角色管理";
         if (url.contains("/system/menu")) return "菜单管理";

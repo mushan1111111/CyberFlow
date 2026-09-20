@@ -17,6 +17,8 @@ test('schedule page acts as a lightweight data-sync console', async () => {
   assert.match(view, /activeByType/)
   assert.match(view, /isActive\(row\.taskType\)/)
   assert.match(view, /window\.setTimeout\(loadOverview, 8000\)/)
+  assert.match(view, /formatBeijingDateTime/)
+  assert.match(view, /Cron 使用北京时间/)
   assert.match(api, /task-history\/overview/)
 })
 
@@ -29,6 +31,8 @@ test('task history supports scoped search and demand-driven refresh', async () =
   assert.match(view, /Number\(overview\.active \|\| 0\) > 0/)
   assert.match(view, /listRequestId/)
   assert.match(view, /耗时/)
+  assert.match(view, /时间均为北京时间/)
+  assert.match(view, /formatBeijingDateTime/)
 })
 
 test('order groups use independent activity scopes and revenue settings validate before saving', async () => {

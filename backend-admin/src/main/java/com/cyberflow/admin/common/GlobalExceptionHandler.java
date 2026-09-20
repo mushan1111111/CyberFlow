@@ -1,5 +1,6 @@
 package com.cyberflow.admin.common;
 
+import com.cyberflow.admin.system.notification.NotificationDeliveryException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
@@ -22,6 +23,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(NotificationDeliveryException.class)
+    @ResponseStatus(HttpStatus.BAD_GATEWAY)
+    public Result<Void> handleNotificationDelivery(NotificationDeliveryException e) {
+        return Result.fail(502, e.getMessage());
+    }
 
     /**
      * 处理登录凭证错误异常（如用户名或密码错误）。

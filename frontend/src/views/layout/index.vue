@@ -144,6 +144,7 @@ const routePermissions = {
   '/system/user': 'system:user:list',
   '/system/role': 'system:role:list',
   '/system/menu': 'system:menu:list',
+  '/system/notification': 'system:notification:view',
   '/system/log': 'system:log:view',
 }
 const serverMenuPaths = computed(() => {
@@ -173,7 +174,6 @@ const fallbackMenus = [
     { id: 13, menuName: '订单列表', path: '/dashboard/orders' },
     { id: 14, menuName: '商品列表', path: '/dashboard/products' },
   ] },
-  { id:70, menuName:'自定义分类',path:'/categories',icon:'CollectionTag',children:[] },
   { id: 2, menuName: '数据同步', icon: 'RefreshRight', children: [
     { id: 21, menuName: '站点、收录与订单同步', path: '/crawler/site' },
     { id: 35, menuName: '收入参数', path: '/crawler/revenue-config' },
@@ -183,6 +183,7 @@ const fallbackMenus = [
   { id: 4, menuName: '商品采集', icon: 'Goods', children: [
     { id: 41, menuName: '数据源站点', path: '/crawler/site-config' },
     { id: 42, menuName: '选择器模板', path: '/crawler/selector-template' },
+    { id: 70, menuName: '自定义分类', path: '/categories' },
   ] },
   { id: 5, menuName: '站点建设', icon: 'Shop', children: [
     { id: 63, menuName: '新站点管理', path: '/new-site' },
@@ -191,6 +192,7 @@ const fallbackMenus = [
     { id: 31, menuName: '用户管理', path: '/system/user' },
     { id: 32, menuName: '角色管理', path: '/system/role' },
     { id: 33, menuName: '菜单管理', path: '/system/menu' },
+    { id: 73, menuName: '通知配置', path: '/system/notification' },
     { id: 34, menuName: '操作日志', path: '/system/log' },
   ] },
 ]

@@ -58,6 +58,9 @@ springdoc:
     path: /admin/swagger-ui.html
 
 cyberflow:
+  notification:
+    # Production should provide a dedicated key. JWT_SECRET is a compatible fallback for existing deployments.
+    encryption-key: ${NOTIFICATION_ENCRYPTION_KEY:${JWT_SECRET:cyberflow-admin-jwt-secret-key-2026}}
   site-assets:
     directory: ${SITE_ASSET_DIRECTORY:.data/site-assets}
   site-generation:

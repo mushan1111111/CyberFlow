@@ -26,8 +26,10 @@ public interface TaskHistoryMapper extends BaseMapper<TaskHistory> {
     /** Aggregate the small set of counters needed by the data-sync console. */
     @Select("SELECT COUNT(*) AS total, " +
             "COALESCE(SUM(CASE WHEN status IN ('PENDING','RUNNING') THEN 1 ELSE 0 END), 0) AS activeCount, " +
-            "COALESCE(SUM(CASE WHEN status='SUCCESS' AND finished_at BETWEEN CURRENT_DATE() AND CURRENT_TIMESTAMP() THEN 1 ELSE 0 END), 0) AS successToday, " +
-            "COALESCE(SUM(CASE WHEN status='FAILED' AND finished_at BETWEEN CURRENT_DATE() AND CURRENT_TIMESTAMP() THEN 1 ELSE 0 END), 0) AS failedToday " +
+            "COALESCE(SUM(CASE WHEN status='SUCCESS' AND finished_at BETWEEN " +
+            "DATE_SUB(DATE(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)), INTERVAL 8 HOUR) AND UTC_TIMESTAMP() THEN 1 ELSE 0 END), 0) AS successToday, " +
+            "COALESCE(SUM(CASE WHEN status='FAILED' AND finished_at BETWEEN " +
+            "DATE_SUB(DATE(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)), INTERVAL 8 HOUR) AND UTC_TIMESTAMP() THEN 1 ELSE 0 END), 0) AS failedToday " +
             "FROM task_history")
     Map<String, Object> selectOverviewCounts();
 

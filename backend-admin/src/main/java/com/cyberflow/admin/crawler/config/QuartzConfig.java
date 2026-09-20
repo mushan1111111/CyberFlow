@@ -62,7 +62,7 @@ public class QuartzConfig {
         return TriggerBuilder.newTrigger()
                 .forJob(siteCrawlJobDetail())
                 .withIdentity("siteCrawlTrigger")
-                .withSchedule(CronScheduleBuilder.cronSchedule(siteCron))
+                .withSchedule(CrawlerTimeZone.cronSchedule(siteCron))
                 .build();
     }
 
@@ -79,7 +79,7 @@ public class QuartzConfig {
         return TriggerBuilder.newTrigger()
                 .forJob(siteIndexCrawlJobDetail())
                 .withIdentity("siteIndexCrawlTrigger")
-                .withSchedule(CronScheduleBuilder.cronSchedule(indexCron))
+                .withSchedule(CrawlerTimeZone.cronSchedule(indexCron))
                 .build();
     }
 
@@ -106,7 +106,7 @@ public class QuartzConfig {
         return TriggerBuilder.newTrigger()
                 .forJob(orderCrawlJobDetail())
                 .withIdentity("orderCrawlTrigger")
-                .withSchedule(CronScheduleBuilder.cronSchedule(orderCron))
+                .withSchedule(CrawlerTimeZone.cronSchedule(orderCron))
                 .build();
     }
 }
