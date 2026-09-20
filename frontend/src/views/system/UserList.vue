@@ -7,7 +7,7 @@
   <el-card>
     <template #header>
       用户管理
-      <el-button type="primary" size="small" style="float: right;" @click="openDialog()">新增用户</el-button>
+      <el-button v-if="canCreate" type="primary" size="small" style="float: right;" @click="openDialog()">新增用户</el-button>
     </template>
 
     <el-table :data="tableData" v-loading="loading" stripe>
@@ -24,11 +24,11 @@
         </template>
       </el-table-column>
       <el-table-column prop="createdAt" label="创建时间" width="180" />
-      <el-table-column label="操作" width="200" fixed="right">
+      <el-table-column v-if="canManage" label="操作" width="200" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" @click="openDialog(row)">编辑</el-button>
-          <el-button size="small" @click="openRoleDialog(row)">分配角色</el-button>
-          <el-button size="small" type="danger" @click="handleDelete(row.id)">删除</el-button>
+          <el-button v-if="canUpdate" size="small" @click="openDialog(row)">编辑</el-button>
+          <el-button v-if="canAssign" size="small" @click="openRoleDialog(row)">分配角色</el-button>
+          <el-button v-if="canDelete" size="small" type="danger" :disabled="row.id === currentUserIdValue" @click="handleDelete(row.id)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -66,7 +66,7 @@
           <el-input v-model="form.password" type="password" show-password />
         </el-form-item>
         <el-form-item label="状态">
-          <el-switch v-model="form.status" :active-value="1" :inactive-value="0" />
+          <el-switch v-model="form.status" :active-value="1" :inactive-value="0" :disabled="isEdit && currentUserId === currentUserIdValue" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -82,7 +82,7 @@
       </el-checkbox-group>
       <template #footer>
         <el-button @click="roleDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleAssignRoles">保存</el-button>
+        <el-button type="primary" :loading="assigning" @click="handleAssignRoles">保存</el-button>
       </template>
     </el-dialog>
   </el-card>
@@ -94,14 +94,24 @@
  * @description 提供系统用户的后台管理功能，包含用户 CRUD 和角色分配。
  *              编辑状态下用户名不可修改，新增时需设置初始密码。
  */
-import { ref, reactive, onMounted } from 'vue'
+import { computed, ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getUsers, createUser, updateUser, deleteUser, assignUserRoles, getAllRoles, getUserRoleIds } from '@/api/system'
+import { useUserStore } from '@/store/user'
+
+const userStore = useUserStore()
+const canCreate = computed(() => userStore.hasPermission('system:user:create'))
+const canUpdate = computed(() => userStore.hasPermission('system:user:update'))
+const canDelete = computed(() => userStore.hasPermission('system:user:delete'))
+const canAssign = computed(() => userStore.hasPermission('system:user:assign'))
+const canManage = computed(() => canUpdate.value || canDelete.value || canAssign.value)
+const currentUserIdValue = computed(() => Number(userStore.userInfo?.id || 0))
 
 /** @type {import('vue').Ref<boolean>} 列表加载状态 */
 const loading = ref(false)
 /** @type {import('vue').Ref<boolean>} 保存按钮加载状态 */
 const saving = ref(false)
+const assigning = ref(false)
 /** @type {import('vue').Ref<Array>} 用户列表数据 */
 const tableData = ref([])
 const page = ref(1)
@@ -172,6 +182,10 @@ function openDialog(row) {
  * 编辑模式下仅当密码非空时才将其包含在请求体中
  */
 async function handleSave() {
+  if (!form.username.trim()) return ElMessage.warning('请填写用户名')
+  if (!isEdit.value && (form.password.length < 8 || form.password.length > 72)) {
+    return ElMessage.warning('密码长度须为 8–72 个字符')
+  }
   saving.value = true
   try {
     if (isEdit.value) {
@@ -205,10 +219,14 @@ async function handleSave() {
  * @param {number} id - 要删除的用户 ID
  */
 async function handleDelete(id) {
-  await ElMessageBox.confirm('确定删除该用户？', '提示', { type: 'warning' })
-  await deleteUser(id)
-  ElMessage.success('已删除')
-  fetchData()
+  try {
+    await ElMessageBox.confirm('确定删除该用户？关联的角色信息也会一并清理。', '提示', { type: 'warning' })
+    await deleteUser(id)
+    ElMessage.success('已删除')
+    fetchData()
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') ElMessage.error('用户删除失败')
+  }
 }
 
 /**
@@ -229,12 +247,15 @@ async function openRoleDialog(row) {
  * 将选中的角色 ID 列表提交到后端
  */
 async function handleAssignRoles() {
+  assigning.value = true
   try {
     await assignUserRoles(currentUserId.value, selectedRoles.value)
     ElMessage.success('角色分配成功')
     roleDialogVisible.value = false
   } catch {
     ElMessage.error('角色分配失败')
+  } finally {
+    assigning.value = false
   }
 }
 

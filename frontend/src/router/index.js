@@ -92,7 +92,7 @@ router.beforeEach((to, from, next) => {
     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}')
     const permissions = userInfo.permissions || []
     const required = to.meta.perms || [to.meta.perm]
-    if (permissions.length && !required.some(permission => permissions.includes(permission))) {
+    if (!required.some(permission => permissions.includes(permission))) {
       next('/dashboard/overview')
       return
     }

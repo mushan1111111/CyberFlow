@@ -3,6 +3,8 @@ package com.cyberflow.admin.system.service;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cyberflow.admin.system.entity.SysOperationLog;
 import com.cyberflow.admin.system.mapper.SysOperationLogMapper;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 /**
@@ -17,5 +19,15 @@ import org.springframework.stereotype.Service;
  * @since 1.0.0
  */
 @Service
+@Slf4j
 public class SysOperationLogService extends ServiceImpl<SysOperationLogMapper, SysOperationLog> {
+
+    @Async
+    public void saveAsync(SysOperationLog logEntry) {
+        try {
+            save(logEntry);
+        } catch (Exception e) {
+            log.warn("Operation log save failed: {}", e.getMessage());
+        }
+    }
 }

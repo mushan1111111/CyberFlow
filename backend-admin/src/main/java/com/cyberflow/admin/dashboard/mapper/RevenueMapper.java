@@ -30,6 +30,18 @@ public interface RevenueMapper {
                                                @Param("endDate") String endDate);
 
     @Select({"<script>",
+            "SELECT user_group, COALESCE(NULLIF(TRIM(customer_ip_country), ''), '未知') AS customer_country,",
+            "COUNT(DISTINCT " + OrderMapper.DEDUPLICATED_ORDER_KEY_SQL + ") AS order_count",
+            "FROM orders WHERE TRIM(COALESCE(user_group, '')) &lt;&gt; ''",
+            "AND (#{userGroup} IS NULL OR user_group = #{userGroup})",
+            "<if test='startDate != null and startDate != &quot;&quot;'> AND create_time &gt;= CONCAT(#{startDate}, ' 00:00:00')</if>",
+            "<if test='endDate != null and endDate != &quot;&quot;'> AND create_time &lt; DATE_ADD(#{endDate}, INTERVAL 1 DAY)</if>",
+            "GROUP BY user_group, customer_country", "</script>"})
+    List<Map<String, Object>> groupOrderCountryStats(@Param("userGroup") String userGroup,
+                                                      @Param("startDate") String startDate,
+                                                      @Param("endDate") String endDate);
+
+    @Select({"<script>",
             "SELECT admin_name, user_group, COUNT(DISTINCT " + OrderMapper.DEDUPLICATED_ORDER_KEY_SQL + ") AS total_orders,",
             "COUNT(DISTINCT CASE WHEN is_valid = 0 THEN " + OrderMapper.DEDUPLICATED_ORDER_KEY_SQL + " END) AS valid_orders,",
             "COUNT(DISTINCT CASE WHEN pay_status_text = '已支付' THEN " + OrderMapper.DEDUPLICATED_ORDER_KEY_SQL + " END) AS successful_orders,",
@@ -52,6 +64,24 @@ public interface RevenueMapper {
                                                @Param("teacherSuffixes") List<String> teacherSuffixes,
                                                @Param("startDate") String startDate,
                                                @Param("endDate") String endDate);
+
+    @Select({"<script>",
+            "SELECT admin_name, user_group, COALESCE(NULLIF(TRIM(customer_ip_country), ''), '未知') AS customer_country,",
+            "COUNT(DISTINCT " + OrderMapper.DEDUPLICATED_ORDER_KEY_SQL + ") AS order_count",
+            "FROM orders WHERE TRIM(COALESCE(admin_name, '')) &lt;&gt; ''",
+            "AND TRIM(COALESCE(user_group, '')) &lt;&gt; '' AND (#{userGroup} IS NULL OR user_group = #{userGroup})",
+            "AND (#{ownerName} IS NULL OR FIND_IN_SET(admin_name, #{ownerName}) &gt; 0 " +
+            "<if test='teacherSuffixes != null and !teacherSuffixes.isEmpty()'> OR " +
+            "<foreach collection='teacherSuffixes' item='suffix' separator=' OR '>admin_name LIKE CONCAT('%', #{suffix})</foreach>" +
+            "</if>)",
+            "<if test='startDate != null and startDate != &quot;&quot;'> AND create_time &gt;= CONCAT(#{startDate}, ' 00:00:00')</if>",
+            "<if test='endDate != null and endDate != &quot;&quot;'> AND create_time &lt; DATE_ADD(#{endDate}, INTERVAL 1 DAY)</if>",
+            "GROUP BY admin_name, user_group, customer_country", "</script>"})
+    List<Map<String, Object>> adminOrderCountryStats(@Param("userGroup") String userGroup,
+                                                      @Param("ownerName") String ownerName,
+                                                      @Param("teacherSuffixes") List<String> teacherSuffixes,
+                                                      @Param("startDate") String startDate,
+                                                      @Param("endDate") String endDate);
 
     @Select({"<script>", "SELECT admin_name, user_group, COUNT(*) AS site_count, SUM(site_tag = 1) AS batch_site_count",
             "FROM site_info WHERE TRIM(COALESCE(admin_name, '')) &lt;&gt; ''",
@@ -117,4 +147,20 @@ public interface RevenueMapper {
                                                      @Param("endDate") String endDate,
                                                      @Param("ownerName") String ownerName,
                                                      @Param("teacherSuffixes") List<String> teacherSuffixes);
+
+    @Select({"<script>", "SELECT " + OrderMapper.NORMALIZED_PRODUCT_HOST_SQL + " AS product_host,",
+            "COALESCE(NULLIF(TRIM(customer_ip_country), ''), '未知') AS customer_country,",
+            "COUNT(DISTINCT " + OrderMapper.DEDUPLICATED_ORDER_KEY_SQL + ") AS order_count",
+            "FROM orders WHERE TRIM(COALESCE(product_host, '')) &lt;&gt; ''",
+            "AND (#{ownerName} IS NULL OR FIND_IN_SET(admin_name, #{ownerName}) &gt; 0 " +
+            "<if test='teacherSuffixes != null and !teacherSuffixes.isEmpty()'> OR " +
+            "<foreach collection='teacherSuffixes' item='suffix' separator=' OR '>admin_name LIKE CONCAT('%', #{suffix})</foreach>" +
+            "</if>)",
+            "<if test='startDate != null and startDate != &quot;&quot;'> AND create_time &gt;= CONCAT(#{startDate}, ' 00:00:00')</if>",
+            "<if test='endDate != null and endDate != &quot;&quot;'> AND create_time &lt; DATE_ADD(#{endDate}, INTERVAL 1 DAY)</if>",
+            "GROUP BY " + OrderMapper.NORMALIZED_PRODUCT_HOST_SQL + ", customer_country", "</script>"})
+    List<Map<String, Object>> revenueOrderCountriesByDomain(@Param("startDate") String startDate,
+                                                             @Param("endDate") String endDate,
+                                                             @Param("ownerName") String ownerName,
+                                                             @Param("teacherSuffixes") List<String> teacherSuffixes);
 }

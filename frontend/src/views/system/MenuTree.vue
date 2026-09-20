@@ -6,7 +6,7 @@
   <el-card>
     <template #header>
       <span>菜单管理</span>
-      <el-button type="primary" size="small" style="float: right" @click="openDialog()">新增菜单</el-button>
+      <el-button v-if="canCreate" type="primary" size="small" style="float: right" @click="openDialog()">新增菜单</el-button>
     </template>
 
     <el-table :data="treeData" v-loading="loading" row-key="id" stripe>
@@ -27,10 +27,10 @@
           <el-tag :type="row.status === 1 ? 'success' : 'danger'">{{ row.status === 1 ? '启用' : '禁用' }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="160" fixed="right">
+      <el-table-column v-if="canManage" label="操作" width="160" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" @click="openDialog(row)">编辑</el-button>
-          <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
+          <el-button v-if="canUpdate" size="small" @click="openDialog(row)">编辑</el-button>
+          <el-button v-if="canDelete" size="small" type="danger" @click="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -40,7 +40,7 @@
         <el-form-item label="父级菜单">
           <el-select v-model="form.parentId" style="width: 100%">
             <el-option label="顶级目录" :value="0" />
-            <el-option v-for="item in parentOptions" :key="item.id" :label="item.menuNameDisplay" :value="item.id" />
+            <el-option v-for="item in parentOptions.filter(option => option.id !== currentMenuId)" :key="item.id" :label="item.menuNameDisplay" :value="item.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="菜单名称" required>
@@ -81,9 +81,16 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { createMenu, deleteMenu, getMenuTree, updateMenu } from '@/api/system'
+import { useUserStore } from '@/store/user'
+
+const userStore = useUserStore()
+const canCreate = computed(() => userStore.hasPermission('system:menu:create'))
+const canUpdate = computed(() => userStore.hasPermission('system:menu:update'))
+const canDelete = computed(() => userStore.hasPermission('system:menu:delete'))
+const canManage = computed(() => canUpdate.value || canDelete.value)
 
 const loading = ref(false)
 const saving = ref(false)
@@ -190,7 +197,7 @@ async function handleSave() {
 
 async function handleDelete(row) {
   try {
-    await ElMessageBox.confirm(`确定删除菜单“${row.menuName}”？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(`确定删除菜单“${row.menuName}”？其全部子菜单和角色关联也会一并清理。`, '提示', { type: 'warning' })
     await deleteMenu(row.id)
     ElMessage.success('菜单已删除')
     await fetchData()

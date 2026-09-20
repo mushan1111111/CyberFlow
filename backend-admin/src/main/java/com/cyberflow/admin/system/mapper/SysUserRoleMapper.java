@@ -30,4 +30,7 @@ public interface SysUserRoleMapper extends BaseMapper<SysUserRole> {
      */
     @Delete("DELETE FROM sys_user_role WHERE user_id = #{userId}")
     int deleteByUserId(@Param("userId") Long userId);
+
+    @Delete("DELETE FROM sys_user_role WHERE role_id = #{roleId}")
+    int deleteByRoleId(@Param("roleId") Long roleId);
 }

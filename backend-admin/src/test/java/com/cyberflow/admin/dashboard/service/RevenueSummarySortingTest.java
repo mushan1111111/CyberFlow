@@ -63,6 +63,21 @@ class RevenueSummarySortingTest {
     }
 
     @Test
+    void countryBreakdownUsesDeduplicatedOrderRatios() {
+        Map<String, Long> countries = new LinkedHashMap<>();
+        countries.put("美国", 7L);
+        countries.put("加拿大", 2L);
+        countries.put("未知", 1L);
+
+        List<Map<String, Object>> breakdown = RevenueSummaryService.countryBreakdown(countries);
+
+        assertEquals(List.of("美国", "加拿大", "未知"),
+                breakdown.stream().map(item -> item.get("country")).toList());
+        assertEquals(List.of(new BigDecimal("70.00"), new BigDecimal("20.00"), new BigDecimal("10.00")),
+                breakdown.stream().map(item -> item.get("ratio")).toList());
+    }
+
+    @Test
     void personalAndMonthlyRowsUseDeduplicatedOrderDescendingOrder() {
         List<Map<String, Object>> rows = new ArrayList<>(List.of(
                 row("A", "three", 3),

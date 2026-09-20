@@ -99,7 +99,9 @@ CREATE TABLE IF NOT EXISTS sys_user_role (
     role_id BIGINT NOT NULL,
     UNIQUE KEY uk_user_role (user_id, role_id),
     INDEX idx_user_id (user_id),
-    INDEX idx_role_id (role_id)
+    INDEX idx_role_id (role_id),
+    CONSTRAINT fk_sys_user_role_user FOREIGN KEY (user_id) REFERENCES sys_user(id) ON DELETE CASCADE,
+    CONSTRAINT fk_sys_user_role_role FOREIGN KEY (role_id) REFERENCES sys_role(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户角色关联';
 
 -- ------------------------------------------------------------
@@ -111,7 +113,9 @@ CREATE TABLE IF NOT EXISTS sys_role_menu (
     menu_id BIGINT NOT NULL,
     UNIQUE KEY uk_role_menu (role_id, menu_id),
     INDEX idx_role_id (role_id),
-    INDEX idx_menu_id (menu_id)
+    INDEX idx_menu_id (menu_id),
+    CONSTRAINT fk_sys_role_menu_role FOREIGN KEY (role_id) REFERENCES sys_role(id) ON DELETE CASCADE,
+    CONSTRAINT fk_sys_role_menu_menu FOREIGN KEY (menu_id) REFERENCES sys_menu(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色菜单关联';
 
 -- ------------------------------------------------------------

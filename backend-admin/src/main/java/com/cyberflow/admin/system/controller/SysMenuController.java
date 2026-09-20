@@ -51,7 +51,7 @@ public class SysMenuController {
     @PostMapping
     @PreAuthorize("hasAuthority('system:menu:create')")
     public Result<Void> create(@RequestBody SysMenu menu) {
-        menuService.save(menu);
+        menuService.createMenu(menu);
         return Result.ok();
     }
 
@@ -66,7 +66,7 @@ public class SysMenuController {
     @PreAuthorize("hasAuthority('system:menu:update')")
     public Result<Void> update(@PathVariable Long id, @RequestBody SysMenu menu) {
         menu.setId(id);
-        menuService.updateById(menu);
+        menuService.updateMenu(menu);
         return Result.ok();
     }
 
@@ -79,7 +79,7 @@ public class SysMenuController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('system:menu:delete')")
     public Result<Void> delete(@PathVariable Long id) {
-        menuService.removeById(id);
+        menuService.deleteMenu(id);
         return Result.ok();
     }
 }
