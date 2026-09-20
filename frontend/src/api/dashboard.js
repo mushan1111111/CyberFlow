@@ -27,6 +27,17 @@ export function getCharts(params) {
   return request.get('/admin/dashboard/charts', { params })
 }
 
+/**
+ * 获取站点维度的订单排行（分页 + 高级筛选）。
+ * @param {Object} params - { page, size, userGroup, startDate, endDate, domain, adminName,
+ *                            themeName, minOrders, minSuccessfulOrders, minIndexCount,
+ *                            minProductCount, minTotalAmount, minSuccessfulAmount, sortBy, sortDir }
+ * @returns {Promise<Object>} 返回 { total, list, summary } 分页结果
+ */
+export function getSiteOrderRanking(params) {
+  return request.get('/admin/dashboard/site-order-ranking', { params, timeout: 60000 })
+}
+
 /** 获取个人绩效、组长提成和建站月度转化率。 */
 export function getRevenueSummary(params) {
   return request.get('/admin/dashboard/revenue-summary', { params })

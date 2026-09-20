@@ -31,6 +31,7 @@ const routes = [
       { path: 'dashboard/orders', name: 'DashboardOrders', component: () => import('@/views/dashboard/OrderList.vue'), meta: { title: '订单列表', section: '数据看板', description: '筛选并追踪多站点订单数据', perm: 'dashboard:order:view' } },
       { path: 'dashboard/products', name: 'DashboardProducts', component: () => import('@/views/dashboard/ProductList.vue'), meta: { title: '商品列表', section: '数据看板', description: '集中管理采集商品与跨平台导出', perm: 'dashboard:product:view' } },
       { path: 'dashboard/indexing', redirect: '/dashboard/sites' },
+      { path: 'dashboard/site-order-ranking', name: 'SiteOrderRanking', component: () => import('@/views/dashboard/SiteOrderRanking.vue'), meta: { title: '站点订单排行', section: '数据看板', description: '按站点统计任意时间段的订单表现，支持多列高级筛选', perm: 'dashboard:site:view' } },
       { path: 'indexing/sites', redirect: '/dashboard/sites' },
       { path: 'indexing/builders', redirect: { path: '/dashboard/sites', query: { view: 'builder' } } },
       { path: 'indexing/servers', redirect: { path: '/dashboard/sites', query: { view: 'server' } } },

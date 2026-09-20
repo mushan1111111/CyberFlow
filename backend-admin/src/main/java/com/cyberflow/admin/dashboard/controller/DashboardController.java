@@ -5,12 +5,14 @@ import com.cyberflow.admin.dashboard.service.DashboardService;
 import com.cyberflow.admin.dashboard.service.ProductExportService;
 import com.cyberflow.admin.dashboard.service.RevenueSummaryService;
 import com.cyberflow.admin.dashboard.service.SiteIndexExportService;
+import com.cyberflow.admin.dashboard.service.SiteOrderRankingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
@@ -44,6 +46,7 @@ public class DashboardController {
     private final ProductExportService productExportService;
     private final RevenueSummaryService revenueSummaryService;
     private final SiteIndexExportService siteIndexExportService;
+    private final SiteOrderRankingService siteOrderRankingService;
 
     /**
      * 获取系统总览数据。
@@ -331,5 +334,42 @@ public class DashboardController {
                                                        @RequestParam(required = false) String endDate,
                                                        @RequestParam(required = false) String siteCreatedMonth) {
         return Result.ok(revenueSummaryService.summarize(userGroup, startDate, endDate, siteCreatedMonth));
+    }
+
+    /** Site level order ranking for one period, with advanced per-column filters. */
+    @GetMapping("/site-order-ranking")
+    @PreAuthorize("hasAnyAuthority('dashboard:overview', 'dashboard:site:view', 'dashboard:order:view')")
+    public Result<Map<String, Object>> siteOrderRanking(@RequestParam(defaultValue = "1") int page,
+                                                         @RequestParam(defaultValue = "20") int size,
+                                                         @RequestParam(required = false) String userGroup,
+                                                         @RequestParam(required = false) String startDate,
+                                                         @RequestParam(required = false) String endDate,
+                                                         @RequestParam(required = false) String domain,
+                                                         @RequestParam(required = false) String adminName,
+                                                         @RequestParam(required = false) String themeName,
+                                                         @RequestParam(required = false) Integer minOrders,
+                                                         @RequestParam(required = false) Integer minSuccessfulOrders,
+                                                         @RequestParam(required = false) Integer minIndexCount,
+                                                         @RequestParam(required = false) Integer minProductCount,
+                                                         @RequestParam(required = false) BigDecimal minTotalAmount,
+                                                         @RequestParam(required = false) BigDecimal minSuccessfulAmount,
+                                                         @RequestParam(required = false) String sortBy,
+                                                         @RequestParam(required = false) String sortDir) {
+        Map<String, Object> filters = new java.util.LinkedHashMap<>();
+        filters.put("userGroup", userGroup);
+        filters.put("startDate", startDate);
+        filters.put("endDate", endDate);
+        filters.put("domain", domain);
+        filters.put("adminName", adminName);
+        filters.put("themeName", themeName);
+        filters.put("minOrders", minOrders);
+        filters.put("minSuccessfulOrders", minSuccessfulOrders);
+        filters.put("minIndexCount", minIndexCount);
+        filters.put("minProductCount", minProductCount);
+        filters.put("minTotalAmount", minTotalAmount);
+        filters.put("minSuccessfulAmount", minSuccessfulAmount);
+        filters.put("sortBy", sortBy);
+        filters.put("sortDir", sortDir);
+        return Result.ok(siteOrderRankingService.search(page, size, filters));
     }
 }
