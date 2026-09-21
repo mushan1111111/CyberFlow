@@ -1,14 +1,10 @@
 <template>
   <div class="site-workspace">
     <section class="workspace-heading">
-      <div>
-        <p class="eyebrow">SITE INTELLIGENCE</p>
-        <h1>站点与收录数据</h1>
-        <p>用一个页面查看站点归属、最新收录状态和汇总表现，低频信息按需展开。</p>
-      </div>
       <div class="heading-actions">
         <el-button :loading="loading" @click="load">刷新</el-button>
         <el-button type="primary" :icon="Download" :loading="exporting" :disabled="loading || !total" @click="exportData">导出当前视图</el-button>
+        <el-button v-if="isAdmin && dimension === 'site'" type="danger" plain :loading="clearingSites" @click="handleClearAllSites">清空站点</el-button>
       </div>
     </section>
 
@@ -68,6 +64,18 @@
           <el-table-column label="归属" min-width="160"><template #default="{ row }"><div class="stack"><strong>{{ row.admin_name || row.builder_username || '未分配' }}</strong><small>{{ row.user_group ? `${row.user_group}组` : '未分组' }}</small></div></template></el-table-column>
           <el-table-column label="服务器" min-width="180"><template #default="{ row }"><div class="stack"><span>{{ row.server_name || '未分配' }}</span><small>{{ row.server_ip || '—' }}</small></div></template></el-table-column>
           <el-table-column label="收录日期" width="150"><template #default="{ row }"><div class="stack"><span>{{ dateOnly(row.index_updated_at) }}</span><small>Sitemap {{ date(row.last_submitted_at) }}</small></div></template></el-table-column>
+          <el-table-column label="登录地址" min-width="230" show-overflow-tooltip>
+            <template #default="{ row }">
+              <el-link v-if="loginHref(row.login_url, row.site_domain)" :href="loginHref(row.login_url, row.site_domain)" target="_blank" type="primary" :underline="false">{{ row.login_url }}</el-link>
+              <span v-else>{{ row.login_url || '—' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="wp_admin_user" label="登录账户" min-width="150" show-overflow-tooltip><template #default="{ row }">{{ row.wp_admin_user || '—' }}</template></el-table-column>
+          <el-table-column label="登录密码" min-width="180">
+            <template #default="{ row }">
+              <div class="credential-password"><span>{{ passwordText(row) }}</span><el-button v-if="row.wp_admin_user_pwd" link type="primary" @click="togglePassword(row)">{{ passwordVisible(row) ? '隐藏' : '显示' }}</el-button></div>
+            </template>
+          </el-table-column>
           <el-table-column label="操作" width="95" fixed="right"><template #default="{ row }"><el-button link type="primary" @click="openDetail(row)">查看详情</el-button></template></el-table-column>
         </template>
         <template v-else>
@@ -90,6 +98,12 @@
             <el-descriptions-item label="用户组">{{ drawerSite.user_group ? `${drawerSite.user_group}组` : '—' }}</el-descriptions-item>
             <el-descriptions-item label="服务器">{{ drawerSite.server_name || '—' }} / {{ drawerSite.server_ip || '—' }}</el-descriptions-item>
             <el-descriptions-item label="最新收录">{{ drawerSite.index_updated_at ? number(drawerSite.index_count) : '未采集' }}</el-descriptions-item>
+            <el-descriptions-item label="登录地址">
+              <el-link v-if="loginHref(drawerSite.login_url, drawerSite.site_domain)" :href="loginHref(drawerSite.login_url, drawerSite.site_domain)" target="_blank" type="primary" :underline="false">{{ drawerSite.login_url }}</el-link>
+              <span v-else>{{ drawerSite.login_url || '—' }}</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="登录账户">{{ drawerSite.wp_admin_user || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="登录密码"><div class="credential-password"><span>{{ passwordText(drawerSite) }}</span><el-button v-if="drawerSite.wp_admin_user_pwd" link type="primary" @click="togglePassword(drawerSite)">{{ passwordVisible(drawerSite) ? '隐藏' : '显示' }}</el-button></div></el-descriptions-item>
             <el-descriptions-item label="主题">{{ drawerSite.theme_name || '—' }}</el-descriptions-item>
             <el-descriptions-item label="商品分类">{{ formatSiteCategories(null, drawerSite.product_category) }}</el-descriptions-item>
             <el-descriptions-item label="域名申请">{{ date(drawerSite.domain_applied_at) }}</el-descriptions-item>
@@ -121,14 +135,14 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Download } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
-import { exportSiteIndexes, getOrdersByDomain, getSiteIndexes, getSiteIndexHistory } from '@/api/dashboard'
+import { clearAllSites, exportSiteIndexes, getOrdersByDomain, getSiteIndexes, getSiteIndexHistory } from '@/api/dashboard'
 import { useUserStore } from '@/store/user'
 import { useSiteGroups } from '@/composables/useSiteGroups'
 import { formatSiteCategories } from '@/utils/sitePresentation'
@@ -150,13 +164,35 @@ const viewDescription = computed(() => ({ site: '查看每个站点的最新状�
 const drilled = computed(() => !!(route.query.builderUsername || route.query.serverIp || route.query.serverNameExact))
 const defaults = () => ({ domain: '', adminName: '', serverName: '', userGroup: '', themeName: '', productCategory: '', siteDateRange: [], submittedDateRange: [], updatedDateRange: [], minIndexCount: null, maxIndexCount: null, changeDirection: '' })
 const filters = reactive(defaults())
-const rows = ref([]), summary = ref({}), page = ref(1), size = ref(20), total = ref(0), loading = ref(false), exporting = ref(false), advanced = ref(false), appliedParams = ref(null)
+const rows = ref([]), summary = ref({}), page = ref(1), size = ref(20), total = ref(0), loading = ref(false), exporting = ref(false), clearingSites = ref(false), advanced = ref(false), appliedParams = ref(null)
+const visiblePasswords = ref(new Set())
 const activeFilterCount = computed(() => Object.values(filters).filter(value => Array.isArray(value) ? value.length : value !== '' && value !== null).length)
 const number = value => Number(value || 0).toLocaleString('zh-CN')
 const signed = value => Number(value) > 0 ? `+${number(value)}` : number(value)
 const date = value => value ? String(value).replace('T', ' ').slice(0, 16) : '—'
 const dateOnly = value => value ? String(value).slice(0, 10) : '—'
 const changeTone = value => Number(value) > 0 ? 'success' : Number(value) < 0 ? 'danger' : 'info'
+const passwordKey = row => String(row?.site_domain || row?.id || '')
+const passwordVisible = row => visiblePasswords.value.has(passwordKey(row))
+const passwordText = row => !row?.wp_admin_user_pwd ? '—' : passwordVisible(row) ? row.wp_admin_user_pwd : '••••••••'
+function togglePassword(row) {
+  const key = passwordKey(row)
+  const next = new Set(visiblePasswords.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  visiblePasswords.value = next
+}
+function loginHref(value, siteDomain) {
+  const login = String(value || '').trim()
+  if (!login) return ''
+  if (/^https?:\/\//i.test(login)) return login
+  if (/^[a-z][a-z\d+.-]*:/i.test(login)) return ''
+  if (login.startsWith('/')) {
+    const domain = normalizeDomain(siteDomain)
+    return domain ? `https://${domain}${login}` : ''
+  }
+  return `https://${login.replace(/^\/\//, '')}`
+}
 const metrics = computed(() => [
   { label: '站点数', value: number(summary.value.site_count), note: '当前筛选范围', tone: 'blue' },
   { label: 'Google 收录', value: number(summary.value.index_count), note: `本次变化 ${signed(summary.value.index_change)}`, tone: Number(summary.value.index_change) < 0 ? 'red' : 'green' },
@@ -234,6 +270,28 @@ async function exportData() {
     ElMessage.success('导出完成')
   } finally { exporting.value = false }
 }
+async function handleClearAllSites() {
+  if (!isAdmin.value) return
+  try {
+    await ElMessageBox.confirm(
+      '将永久删除全部站点资料及全部收录历史，当前筛选条件不会限制清空范围。订单和商品数据会保留，该操作不可恢复，确定继续吗？',
+      '清空全部站点',
+      { type: 'warning', confirmButtonText: '确认清空', cancelButtonText: '取消' },
+    )
+  } catch {
+    return
+  }
+  clearingSites.value = true
+  try {
+    const res = await clearAllSites()
+    drawerVisible.value = false
+    page.value = 1
+    ElMessage.success(`已清空 ${number(res.data?.deleted_sites)} 个站点及 ${number(res.data?.deleted_index_history)} 条收录历史`)
+    await load()
+  } finally {
+    clearingSites.value = false
+  }
+}
 
 const drawerVisible = ref(false), drawerSite = ref(null), detailTab = ref('overview')
 const historyLoading = ref(false), indexHistory = ref([])
@@ -287,7 +345,7 @@ watch(() => route.fullPath, () => {
 </script>
 
 <style scoped>
-.site-workspace { display: grid; gap: 16px; }.workspace-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }.workspace-heading h1 { margin: 0; color: var(--cf-ink); font-size: 27px; letter-spacing: -.04em; }.workspace-heading p { margin: 7px 0 0; color: var(--cf-muted); font-size: 12px; }.workspace-heading .eyebrow { margin: 0 0 6px; color: var(--cf-blue); font-size: 9px; font-weight: 800; letter-spacing: .15em; }.heading-actions { display: flex; flex-shrink: 0; }.summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }.summary-card { padding: 17px 18px; border: 1px solid var(--cf-line); border-radius: 13px; background: #fff; box-shadow: var(--cf-shadow-sm); }.summary-card span, .summary-card small { display: block; color: var(--cf-muted); font-size: 10px; }.summary-card strong { display: block; margin: 8px 0 5px; color: var(--cf-ink); font-size: 24px; }.summary-card.blue { border-top: 3px solid #536ff1; }.summary-card.green { border-top: 3px solid #36ad82; }.summary-card.red { border-top: 3px solid #df6577; }.summary-card.violet { border-top: 3px solid #8a64e8; }.summary-card.amber { border-top: 3px solid #d99a37; }.control-card, .table-card { min-width: 0; border-radius: 14px; }.view-switch { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }.view-switch > span { color: var(--cf-muted); font-size: 11px; }.filter-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 14px; }.filter-grid :deep(.el-date-editor), .filter-grid :deep(.el-input-number), .filter-grid :deep(.el-select) { width: 100%; min-width: 0; }.advanced-grid { padding-top: 2px; border-top: 1px dashed var(--cf-line); }.filter-actions { display: flex; align-items: center; gap: 2px; }.filter-actions > span { margin-left: auto; color: var(--cf-muted); font-size: 10px; }.scope-alert { margin-bottom: 16px; }.table-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }.table-heading strong { color: var(--cf-ink); font-size: 14px; }.table-heading span { color: var(--cf-muted); font-size: 11px; }.stack { display: flex; min-width: 0; flex-direction: column; gap: 4px; }.stack strong, .stack span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.stack small { color: var(--cf-muted); font-size: 10px; }.index-value { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }.index-value strong { color: #2d3c55; font-size: 14px; }.aggregate-index { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }.aggregate-index strong { color: #2d3c55; font-size: 14px; }.aggregate-index span { color: var(--cf-muted); font-size: 9px; }.el-pagination { justify-content: flex-end; margin-top: 18px; flex-wrap: wrap; }.detail-descriptions { margin-top: 8px; }.trend-wrap { min-height: 380px; }.trend-chart { height: 400px; }.order-toolbar { display: flex; gap: 10px; margin-bottom: 14px; }
+.site-workspace { display: grid; gap: 16px; }.workspace-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }.workspace-heading h1 { margin: 0; color: var(--cf-ink); font-size: 27px; letter-spacing: -.04em; }.workspace-heading p { margin: 7px 0 0; color: var(--cf-muted); font-size: 12px; }.workspace-heading .eyebrow { margin: 0 0 6px; color: var(--cf-blue); font-size: 9px; font-weight: 800; letter-spacing: .15em; }.heading-actions { display: flex; flex-shrink: 0; }.summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }.summary-card { padding: 17px 18px; border: 1px solid var(--cf-line); border-radius: 13px; background: #fff; box-shadow: var(--cf-shadow-sm); }.summary-card span, .summary-card small { display: block; color: var(--cf-muted); font-size: 10px; }.summary-card strong { display: block; margin: 8px 0 5px; color: var(--cf-ink); font-size: 24px; }.summary-card.blue { border-top: 3px solid #536ff1; }.summary-card.green { border-top: 3px solid #36ad82; }.summary-card.red { border-top: 3px solid #df6577; }.summary-card.violet { border-top: 3px solid #8a64e8; }.summary-card.amber { border-top: 3px solid #d99a37; }.control-card, .table-card { min-width: 0; border-radius: 14px; }.view-switch { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }.view-switch > span { color: var(--cf-muted); font-size: 11px; }.filter-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 14px; }.filter-grid :deep(.el-date-editor), .filter-grid :deep(.el-input-number), .filter-grid :deep(.el-select) { width: 100%; min-width: 0; }.advanced-grid { padding-top: 2px; border-top: 1px dashed var(--cf-line); }.filter-actions { display: flex; align-items: center; gap: 2px; }.filter-actions > span { margin-left: auto; color: var(--cf-muted); font-size: 10px; }.scope-alert { margin-bottom: 16px; }.table-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }.table-heading strong { color: var(--cf-ink); font-size: 14px; }.table-heading span { color: var(--cf-muted); font-size: 11px; }.stack { display: flex; min-width: 0; flex-direction: column; gap: 4px; }.stack strong, .stack span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.stack small { color: var(--cf-muted); font-size: 10px; }.index-value { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }.index-value strong { color: #2d3c55; font-size: 14px; }.aggregate-index { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }.aggregate-index strong { color: #2d3c55; font-size: 14px; }.aggregate-index span { color: var(--cf-muted); font-size: 9px; }.credential-password { display: flex; min-width: 0; align-items: center; gap: 7px; }.credential-password span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.credential-password .el-button { flex: 0 0 auto; }.el-pagination { justify-content: flex-end; margin-top: 18px; flex-wrap: wrap; }.detail-descriptions { margin-top: 8px; }.trend-wrap { min-height: 380px; }.trend-chart { height: 400px; }.order-toolbar { display: flex; gap: 10px; margin-bottom: 14px; }
 @media (max-width: 1050px) { .summary-grid, .filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 680px) { .workspace-heading { align-items: flex-start; flex-direction: column; }.heading-actions { width: 100%; }.heading-actions .el-button { flex: 1; }.summary-grid, .filter-grid { grid-template-columns: 1fr 1fr; }.view-switch { align-items: flex-start; flex-direction: column; }.view-switch > span { display: none; }.order-toolbar { align-items: stretch; flex-direction: column; } }
 @media (max-width: 480px) { .summary-grid, .filter-grid { grid-template-columns: 1fr; } }

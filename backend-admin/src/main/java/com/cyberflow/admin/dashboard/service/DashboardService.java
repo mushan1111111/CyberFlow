@@ -188,6 +188,20 @@ public class DashboardService {
     }
 
     /**
+     * Clear the complete site master and its indexing snapshots while retaining orders and products.
+     * Index history is removed first so the operation remains valid if a foreign key is introduced later.
+     */
+    @Transactional
+    public Map<String, Object> clearAllSites() {
+        int deletedIndexHistory = indexingMapper.deleteAllIndexHistory();
+        int deletedSites = siteInfoMapper.deleteAllSites();
+        var result = new LinkedHashMap<String, Object>();
+        result.put("deleted_sites", deletedSites);
+        result.put("deleted_index_history", deletedIndexHistory);
+        return result;
+    }
+
+    /**
      * 分页查询订单列表，支持按日期范围或管理员名称过滤。
      *
      * @param page      页码（从 1 开始）

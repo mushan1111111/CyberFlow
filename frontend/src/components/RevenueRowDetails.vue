@@ -10,7 +10,7 @@
     <section class="category-section">
       <div class="classification-heading">
         <strong>站点商品分类明细</strong>
-        <span>按站点分类标签占比</span>
+        <span>按当前筛选范围内的去重订单占比</span>
       </div>
       <div v-if="categoryItems.length" class="category-content">
         <VChart :option="categoryChartOption" autoresize class="category-chart" />
@@ -18,7 +18,7 @@
           <div v-for="(item, index) in categoryItems" :key="item.category" class="category-legend-item">
             <i :style="{ background: chartColors[index % chartColors.length] }"></i>
             <span :title="item.category">{{ item.category }}</span>
-            <strong>{{ formatNumber(item.site_count) }} 站 · {{ formatRatio(item.ratio) }}</strong>
+            <strong>{{ formatNumber(item.order_count) }} 笔 · {{ formatRatio(item.ratio) }}</strong>
           </div>
         </div>
       </div>
@@ -84,16 +84,16 @@ const countryColors = ['#3f78d7', '#e89b43', '#43ad88', '#8d66d9', '#dc687e', '#
 const categoryItems = computed(() => props.categoryBreakdown
   .map(item => ({
     category: String(item?.category || '未分类'),
-    site_count: Number(item?.site_count || 0),
+    order_count: Number(item?.order_count || 0),
     ratio: Number(item?.ratio || 0),
   }))
-  .filter(item => item.site_count > 0))
+  .filter(item => item.order_count > 0))
 const categoryChartOption = computed(() => ({
   color: chartColors,
   tooltip: {
     trigger: 'item',
     renderMode: 'richText',
-    formatter: params => `${params.name}\n${formatNumber(params.value)} 站 · ${Number(params.percent || 0).toFixed(2)}%`,
+    formatter: params => `${params.name}\n${formatNumber(params.value)} 笔 · ${Number(params.percent || 0).toFixed(2)}%`,
   },
   series: [{
     type: 'pie',
@@ -104,7 +104,7 @@ const categoryChartOption = computed(() => ({
     itemStyle: { borderColor: '#fff', borderWidth: 2, borderRadius: 4 },
     label: { show: false },
     emphasis: { scaleSize: 7 },
-    data: categoryItems.value.map(item => ({ name: item.category, value: item.site_count })),
+    data: categoryItems.value.map(item => ({ name: item.category, value: item.order_count })),
   }],
 }))
 const countryItems = computed(() => props.countryBreakdown

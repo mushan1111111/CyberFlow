@@ -48,7 +48,7 @@ class RevenueSummarySortingTest {
     }
 
     @Test
-    void categoryBreakdownSortsCategoriesAndCalculatesSiteLabelRatios() {
+    void categoryBreakdownSortsCategoriesAndCalculatesDeduplicatedOrderRatios() {
         Map<String, Long> categories = new LinkedHashMap<>();
         categories.put("户外用品", 2L);
         categories.put("家居用品", 3L);
@@ -58,6 +58,8 @@ class RevenueSummarySortingTest {
 
         assertEquals(List.of("家居用品", "户外用品", "玩具"),
                 breakdown.stream().map(item -> item.get("category")).toList());
+        assertEquals(List.of(3L, 2L, 1L),
+                breakdown.stream().map(item -> item.get("order_count")).toList());
         assertEquals(List.of(new BigDecimal("50.00"), new BigDecimal("33.33"), new BigDecimal("16.67")),
                 breakdown.stream().map(item -> item.get("ratio")).toList());
     }

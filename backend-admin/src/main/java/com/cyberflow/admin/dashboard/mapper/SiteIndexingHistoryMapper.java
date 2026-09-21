@@ -4,6 +4,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.cursor.Cursor;
 
 import java.util.List;
@@ -20,6 +21,10 @@ import java.util.Map;
  */
 @Mapper
 public interface SiteIndexingHistoryMapper {
+
+    /** Delete all indexing snapshots before their site masters are cleared. */
+    @Delete("DELETE FROM site_indexing_history")
+    int deleteAllIndexHistory();
 
     String NORMALIZED_HISTORY_DOMAIN =
             "LOWER(CASE WHEN LEFT(TRIM(h.site_domain), 4) = 'www.' " +
@@ -73,7 +78,7 @@ public interface SiteIndexingHistoryMapper {
     long countLatestSites(@Param("filters") Map<String, Object> filters);
 
     @Select({"<script>", LATEST_INDEX_CTE,
-            "SELECT s.site_domain, s.builder_username, s.admin_name, s.user_group, s.theme_name, s.product_category, s.domain_applied_at, s.created_at,",
+            "SELECT s.site_domain, s.login_url, s.wp_admin_user, s.wp_admin_user_pwd, s.builder_username, s.admin_name, s.user_group, s.theme_name, s.product_category, s.domain_applied_at, s.created_at,",
             "COALESCE(NULLIF(l.server_name, ''), s.server_name) AS server_name,",
             "COALESCE(NULLIF(l.server_ip, ''), s.server_ip) AS server_ip,",
             "COALESCE(l.last_submitted_at, s.last_submitted_at) AS last_submitted_at,",
@@ -88,7 +93,7 @@ public interface SiteIndexingHistoryMapper {
 
     /** Stream every matching site row for a filtered Excel export. */
     @Select({"<script>", LATEST_INDEX_CTE,
-            "SELECT s.site_domain, s.builder_username, s.admin_name, s.user_group, s.theme_name, s.product_category, s.domain_applied_at, s.created_at,",
+            "SELECT s.site_domain, s.login_url, s.wp_admin_user, s.wp_admin_user_pwd, s.builder_username, s.admin_name, s.user_group, s.theme_name, s.product_category, s.domain_applied_at, s.created_at,",
             "COALESCE(NULLIF(l.server_name, ''), s.server_name) AS server_name,",
             "COALESCE(NULLIF(l.server_ip, ''), s.server_ip) AS server_ip,",
             "COALESCE(l.last_submitted_at, s.last_submitted_at) AS last_submitted_at,",

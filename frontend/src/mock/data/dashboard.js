@@ -36,6 +36,9 @@ const sites = Array.from({ length: 53 }, (_, i) => ({
   id: i + 1,
   username: 'admin',
   site_domain: domains[i % domains.length] + (i > 5 ? `/${i}` : ''),
+  login_url: `https://${domains[i % domains.length]}/wp-admin`,
+  wp_admin_user: `site-admin-${i + 1}`,
+  wp_admin_user_pwd: `demo-password-${i + 1}`,
   admin_name: adminNames[i % adminNames.length],
   user_group: i % 2 === 0 ? 'A' : 'B',
   theme_name: themeNames[i % themeNames.length],
@@ -190,6 +193,13 @@ export default {
     if (params.startDate) matched = matched.filter(item => item.created_at?.slice(0, 10) >= params.startDate)
     if (params.endDate) matched = matched.filter(item => item.created_at?.slice(0, 10) <= params.endDate)
     return { code: 200, msg: 'success', data: { total: matched.length, list: matched.slice(start, start + size) } }
+  },
+
+  /** 管理员清空全部站点资料。 */
+  clearAllSites: () => {
+    const deletedSites = sites.length
+    sites.splice(0, sites.length)
+    return { code: 200, msg: 'success', data: { deleted_sites: deletedSites, deleted_index_history: 0 } }
   },
 
   /**

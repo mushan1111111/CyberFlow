@@ -51,6 +51,8 @@ Mock.mock(/\/admin\/dashboard\/site-groups/, 'get', dashboardData.siteGroups)
 Mock.mock(/\/admin\/dashboard\/charts/, 'get', dashboardData.charts)
 /** 拦截 GET /admin/dashboard/sites - 站点分页列表 */
 Mock.mock(/\/admin\/dashboard\/sites(\?|$)/, 'get', (options) => dashboardData.sites(paramParser(options.url)))
+/** 拦截 DELETE /admin/dashboard/sites/clear - 管理员清空站点与收录历史 */
+Mock.mock(/\/admin\/dashboard\/sites\/clear(\?|$)/, 'delete', dashboardData.clearAllSites)
 /** 拦截 GET /admin/dashboard/site-index-history - 站点收录历史 */
 Mock.mock(/\/admin\/dashboard\/site-index-history(\?|$)/, 'get', (options) => dashboardData.siteIndexHistory(paramParser(options.url)))
 /** 拦截 GET /admin/dashboard/orders-by-domain - 按域名查询订单 */

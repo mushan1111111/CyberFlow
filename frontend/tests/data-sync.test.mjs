@@ -55,9 +55,10 @@ test('order groups use independent activity scopes and revenue settings validate
 
 test('site indexing and order sync share one page with independent task state', async () => {
   const site = await read('src/views/crawler/SiteCrawler.vue')
+  const layout = await read('src/views/layout/index.vue')
   const collect = await read('src/views/crawler/CollectCrawler.vue')
   const order = await read('src/views/crawler/OrderCrawler.vue')
-  assert.match(site, /站点、收录与订单同步/)
+  assert.match(site, /手动同步/)
   assert.match(site, /triggerSiteCrawler/)
   assert.match(site, /triggerCollectCrawler/)
   assert.match(site, /triggerOrderCrawler/)
@@ -68,8 +69,14 @@ test('site indexing and order sync share one page with independent task state', 
   assert.match(site, /orderProgress = useTaskProgress\(\)/)
   assert.match(site, /activeByScope/)
   assert.match(site, /\['PENDING', 'RUNNING', 'PAUSED'\]/)
+  assert.match(site, /class="sync-sequence"/)
+  assert.match(site, /class="sync-card order-card"/)
+  assert.match(site, /grid-template-columns: repeat\(2/)
+  assert.match(site, /syncActiveCount/)
   assert.match(collect, /<SiteCrawler/)
   assert.match(order, /<SiteCrawler/)
+  assert.doesNotMatch(layout, /class="route-heading"/)
+  assert.match(layout, /breadcrumb-current/)
 
   const progress = await read('src/composables/useTaskProgress.js')
   assert.match(progress, /consecutiveFailures < 3/)

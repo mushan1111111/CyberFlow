@@ -91,6 +91,13 @@ public class DashboardController {
                 serverName, themeName, productCategory, startDate, endDate));
     }
 
+    /** Delete all site masters and indexing history while retaining order and product data. */
+    @DeleteMapping("/sites/clear")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public Result<Map<String, Object>> clearAllSites() {
+        return Result.ok(dashboardService.clearAllSites());
+    }
+
     /**
      * 分页查询订单列表，支持按日期范围或管理员名称过滤。
      *

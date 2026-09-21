@@ -87,14 +87,6 @@
       </el-header>
 
       <el-main class="page-main">
-        <section v-if="route.name !== 'DashboardOverview'" class="route-heading">
-          <div>
-            <p class="route-eyebrow">{{ route.meta.section || 'CYBERFLOW' }}</p>
-            <h1>{{ route.meta.title }}</h1>
-            <p class="route-description">{{ route.meta.description }}</p>
-          </div>
-          <span class="route-index">{{ routeIndex }}</span>
-        </section>
         <router-view v-slot="{ Component }">
           <transition name="page-fade" mode="out-in">
             <component :is="Component" :key="route.path" />
@@ -257,12 +249,6 @@ const menuTree = computed(() => {
 })
 const displayName = computed(() => userStore.userInfo?.nickname || userStore.userInfo?.username || '管理员')
 const avatarText = computed(() => displayName.value.slice(0, 1))
-const routeIndex = computed(() => {
-  const routes = router.getRoutes().filter(item => item.meta?.title && item.name !== 'Login')
-  const index = routes.findIndex(item => item.name === route.name)
-  return String(Math.max(0, index) + 1).padStart(2, '0')
-})
-
 onMounted(async () => {
   if (userStore.token) await userStore.refreshUserInfo().catch(() => {})
 })
@@ -340,12 +326,6 @@ async function handleMenuSelect(path) {
 .profile-copy small { color: #98a5b8; font-size: 10px; }
 .profile-button > .el-icon { color: #9ca8b9; font-size: 12px; }
 .page-main { min-width: 0; padding: 30px 34px 48px; overflow-y: auto; }
-.route-heading { display: flex; max-width: 1440px; align-items: flex-end; justify-content: space-between; margin: 0 auto 22px; }
-.route-heading p, .route-heading h1 { margin: 0; }
-.route-eyebrow { margin-bottom: 7px !important; color: var(--cf-blue); font-size: 9px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
-.route-heading h1 { color: var(--cf-ink); font-size: 27px; letter-spacing: -.045em; }
-.route-description { margin-top: 7px !important; color: var(--cf-muted); font-size: 12px; }
-.route-index { color: #e1e5ed; font-size: 44px; font-weight: 760; letter-spacing: -.06em; line-height: .9; }
 .page-fade-enter-active, .page-fade-leave-active { transition: opacity .18s ease, transform .18s ease; }
 .page-fade-enter-from { opacity: 0; transform: translateY(5px); }
 .page-fade-leave-to { opacity: 0; transform: translateY(-3px); }
@@ -359,9 +339,5 @@ async function handleMenuSelect(path) {
 @media (max-width: 560px) {
   .breadcrumb-root, .breadcrumb-wrap > .el-icon { display: none; }
   .topbar-right { gap: 4px; }
-  .route-heading { align-items: flex-start; }
-  .route-heading h1 { font-size: 24px; }
-  .route-description { max-width: 270px; line-height: 1.6; }
-  .route-index { display: none; }
 }
 </style>
