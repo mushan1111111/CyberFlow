@@ -78,7 +78,7 @@ public interface SiteIndexingHistoryMapper {
     long countLatestSites(@Param("filters") Map<String, Object> filters);
 
     @Select({"<script>", LATEST_INDEX_CTE,
-            "SELECT s.site_domain, s.login_url, s.wp_admin_user, s.wp_admin_user_pwd, s.builder_username, s.admin_name, s.user_group, s.theme_name, s.product_category, s.domain_applied_at, s.created_at,",
+            "SELECT s.site_domain, s.builder_username, s.admin_name, s.user_group, s.theme_name, s.product_category, s.domain_applied_at, s.created_at,",
             "COALESCE(NULLIF(l.server_name, ''), s.server_name) AS server_name,",
             "COALESCE(NULLIF(l.server_ip, ''), s.server_ip) AS server_ip,",
             "COALESCE(l.last_submitted_at, s.last_submitted_at) AS last_submitted_at,",
@@ -93,7 +93,7 @@ public interface SiteIndexingHistoryMapper {
 
     /** Stream every matching site row for a filtered Excel export. */
     @Select({"<script>", LATEST_INDEX_CTE,
-            "SELECT s.site_domain, s.login_url, s.wp_admin_user, s.wp_admin_user_pwd, s.builder_username, s.admin_name, s.user_group, s.theme_name, s.product_category, s.domain_applied_at, s.created_at,",
+            "SELECT s.site_domain, s.builder_username, s.admin_name, s.user_group, s.theme_name, s.product_category, s.domain_applied_at, s.created_at,",
             "COALESCE(NULLIF(l.server_name, ''), s.server_name) AS server_name,",
             "COALESCE(NULLIF(l.server_ip, ''), s.server_ip) AS server_ip,",
             "COALESCE(l.last_submitted_at, s.last_submitted_at) AS last_submitted_at,",

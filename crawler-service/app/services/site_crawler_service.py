@@ -91,17 +91,11 @@ class SiteCrawler:
                     existing_site.theme_name = item.get("theme_name")
                     existing_site.product_category = item.get("product_category")
                     existing_site.admin_name = item.get("admin_name")
-                    existing_site.login_url = item.get("login_url")
-                    existing_site.wp_admin_user = item.get("wp_admin_user")
-                    existing_site.wp_admin_user_pwd = item.get("wp_admin_user_pwd")
                 else:
                     # 如果不存在，新建
                     new_site = SiteInfo(
                         username=self.username,
                         site_domain=item["site_domain"],
-                        login_url=item.get("login_url"),
-                        wp_admin_user=item.get("wp_admin_user"),
-                        wp_admin_user_pwd=item.get("wp_admin_user_pwd"),
                         admin_name=item["admin_name"],
                         theme_name=item.get("theme_name"),
                         product_category=item.get("product_category"),
@@ -243,9 +237,6 @@ class SiteCrawler:
                         "admin_name": site_info.get("admin_name") or admin_name,
                         "theme_name" : site_info.get("theme_name"),
                         "product_category" : site_info.get("product_category",''),
-                        "login_url": site_info.get("login_url"),
-                        "wp_admin_user": site_info.get("wp_admin_user"),
-                        "wp_admin_user_pwd": site_info.get("wp_admin_user_pwd"),
                         "add_date": add_time,
                         "created_at": add_time,
 

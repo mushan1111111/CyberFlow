@@ -148,9 +148,6 @@ class AsyncSiteCrawler:
                         site_map[domain] = {
                             "theme_name": item.get("theme_name", ""),
                             "product_category": item.get("product_category", ""),
-                            "login_url": item.get("login_url") or "",
-                            "wp_admin_user": item.get("wp_admin_user") or "",
-                            "wp_admin_user_pwd": item.get("wp_admin_user_pwd") or "",
                             "cat_names": item.get("cat_names") or [],
                             "site_tag": self._site_tag(item.get("site_tag")),
                             "builder_username": admin_info.get("username") or "",
@@ -232,9 +229,6 @@ class AsyncSiteCrawler:
                     if mapped:
                         record["theme_name"] = mapped["theme_name"]
                         record["product_category"] = mapped["product_category"]
-                        record["login_url"] = mapped.get("login_url") or ""
-                        record["wp_admin_user"] = mapped.get("wp_admin_user") or ""
-                        record["wp_admin_user_pwd"] = mapped.get("wp_admin_user_pwd") or ""
                         record["builder_username"] = mapped.get("builder_username") or ""
                         record["server_name"] = record.get("server_name") or mapped.get("server_name")
                         record["server_ip"] = mapped.get("server_ip") or ""

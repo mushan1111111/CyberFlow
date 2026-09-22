@@ -64,18 +64,6 @@
           <el-table-column label="归属" min-width="160"><template #default="{ row }"><div class="stack"><strong>{{ row.admin_name || row.builder_username || '未分配' }}</strong><small>{{ row.user_group ? `${row.user_group}组` : '未分组' }}</small></div></template></el-table-column>
           <el-table-column label="服务器" min-width="180"><template #default="{ row }"><div class="stack"><span>{{ row.server_name || '未分配' }}</span><small>{{ row.server_ip || '—' }}</small></div></template></el-table-column>
           <el-table-column label="收录日期" width="150"><template #default="{ row }"><div class="stack"><span>{{ dateOnly(row.index_updated_at) }}</span><small>Sitemap {{ date(row.last_submitted_at) }}</small></div></template></el-table-column>
-          <el-table-column label="登录地址" min-width="230" show-overflow-tooltip>
-            <template #default="{ row }">
-              <el-link v-if="loginHref(row.login_url, row.site_domain)" :href="loginHref(row.login_url, row.site_domain)" target="_blank" type="primary" :underline="false">{{ row.login_url }}</el-link>
-              <span v-else>{{ row.login_url || '—' }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="wp_admin_user" label="登录账户" min-width="150" show-overflow-tooltip><template #default="{ row }">{{ row.wp_admin_user || '—' }}</template></el-table-column>
-          <el-table-column label="登录密码" min-width="180">
-            <template #default="{ row }">
-              <div class="credential-password"><span>{{ passwordText(row) }}</span><el-button v-if="row.wp_admin_user_pwd" link type="primary" @click="togglePassword(row)">{{ passwordVisible(row) ? '隐藏' : '显示' }}</el-button></div>
-            </template>
-          </el-table-column>
           <el-table-column label="操作" width="95" fixed="right"><template #default="{ row }"><el-button link type="primary" @click="openDetail(row)">查看详情</el-button></template></el-table-column>
         </template>
         <template v-else>
@@ -98,12 +86,6 @@
             <el-descriptions-item label="用户组">{{ drawerSite.user_group ? `${drawerSite.user_group}组` : '—' }}</el-descriptions-item>
             <el-descriptions-item label="服务器">{{ drawerSite.server_name || '—' }} / {{ drawerSite.server_ip || '—' }}</el-descriptions-item>
             <el-descriptions-item label="最新收录">{{ drawerSite.index_updated_at ? number(drawerSite.index_count) : '未采集' }}</el-descriptions-item>
-            <el-descriptions-item label="登录地址">
-              <el-link v-if="loginHref(drawerSite.login_url, drawerSite.site_domain)" :href="loginHref(drawerSite.login_url, drawerSite.site_domain)" target="_blank" type="primary" :underline="false">{{ drawerSite.login_url }}</el-link>
-              <span v-else>{{ drawerSite.login_url || '—' }}</span>
-            </el-descriptions-item>
-            <el-descriptions-item label="登录账户">{{ drawerSite.wp_admin_user || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="登录密码"><div class="credential-password"><span>{{ passwordText(drawerSite) }}</span><el-button v-if="drawerSite.wp_admin_user_pwd" link type="primary" @click="togglePassword(drawerSite)">{{ passwordVisible(drawerSite) ? '隐藏' : '显示' }}</el-button></div></el-descriptions-item>
             <el-descriptions-item label="主题">{{ drawerSite.theme_name || '—' }}</el-descriptions-item>
             <el-descriptions-item label="商品分类">{{ formatSiteCategories(null, drawerSite.product_category) }}</el-descriptions-item>
             <el-descriptions-item label="域名申请">{{ date(drawerSite.domain_applied_at) }}</el-descriptions-item>
@@ -165,34 +147,12 @@ const drilled = computed(() => !!(route.query.builderUsername || route.query.ser
 const defaults = () => ({ domain: '', adminName: '', serverName: '', userGroup: '', themeName: '', productCategory: '', siteDateRange: [], submittedDateRange: [], updatedDateRange: [], minIndexCount: null, maxIndexCount: null, changeDirection: '' })
 const filters = reactive(defaults())
 const rows = ref([]), summary = ref({}), page = ref(1), size = ref(20), total = ref(0), loading = ref(false), exporting = ref(false), clearingSites = ref(false), advanced = ref(false), appliedParams = ref(null)
-const visiblePasswords = ref(new Set())
 const activeFilterCount = computed(() => Object.values(filters).filter(value => Array.isArray(value) ? value.length : value !== '' && value !== null).length)
 const number = value => Number(value || 0).toLocaleString('zh-CN')
 const signed = value => Number(value) > 0 ? `+${number(value)}` : number(value)
 const date = value => value ? String(value).replace('T', ' ').slice(0, 16) : '—'
 const dateOnly = value => value ? String(value).slice(0, 10) : '—'
 const changeTone = value => Number(value) > 0 ? 'success' : Number(value) < 0 ? 'danger' : 'info'
-const passwordKey = row => String(row?.site_domain || row?.id || '')
-const passwordVisible = row => visiblePasswords.value.has(passwordKey(row))
-const passwordText = row => !row?.wp_admin_user_pwd ? '—' : passwordVisible(row) ? row.wp_admin_user_pwd : '••••••••'
-function togglePassword(row) {
-  const key = passwordKey(row)
-  const next = new Set(visiblePasswords.value)
-  if (next.has(key)) next.delete(key)
-  else next.add(key)
-  visiblePasswords.value = next
-}
-function loginHref(value, siteDomain) {
-  const login = String(value || '').trim()
-  if (!login) return ''
-  if (/^https?:\/\//i.test(login)) return login
-  if (/^[a-z][a-z\d+.-]*:/i.test(login)) return ''
-  if (login.startsWith('/')) {
-    const domain = normalizeDomain(siteDomain)
-    return domain ? `https://${domain}${login}` : ''
-  }
-  return `https://${login.replace(/^\/\//, '')}`
-}
 const metrics = computed(() => [
   { label: '站点数', value: number(summary.value.site_count), note: '当前筛选范围', tone: 'blue' },
   { label: 'Google 收录', value: number(summary.value.index_count), note: `本次变化 ${signed(summary.value.index_change)}`, tone: Number(summary.value.index_change) < 0 ? 'red' : 'green' },
