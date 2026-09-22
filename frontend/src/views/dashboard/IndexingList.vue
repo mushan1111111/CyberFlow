@@ -63,6 +63,7 @@
           <el-table-column label="商品数" width="105" align="right"><template #default="{ row }">{{ number(row.product_count) }}</template></el-table-column>
           <el-table-column label="归属" min-width="160"><template #default="{ row }"><div class="stack"><strong>{{ row.admin_name || row.builder_username || '未分配' }}</strong><small>{{ row.user_group ? `${row.user_group}组` : '未分组' }}</small></div></template></el-table-column>
           <el-table-column label="服务器" min-width="180"><template #default="{ row }"><div class="stack"><span>{{ row.server_name || '未分配' }}</span><small>{{ row.server_ip || '—' }}</small></div></template></el-table-column>
+          <el-table-column label="商品分类" min-width="180" show-overflow-tooltip><template #default="{ row }">{{ formatSiteCategories(row.cat_names, row.product_category) }}</template></el-table-column>
           <el-table-column label="收录日期" width="150"><template #default="{ row }"><div class="stack"><span>{{ dateOnly(row.index_updated_at) }}</span><small>Sitemap {{ date(row.last_submitted_at) }}</small></div></template></el-table-column>
           <el-table-column label="操作" width="95" fixed="right"><template #default="{ row }"><el-button link type="primary" @click="openDetail(row)">查看详情</el-button></template></el-table-column>
         </template>
@@ -87,7 +88,7 @@
             <el-descriptions-item label="服务器">{{ drawerSite.server_name || '—' }} / {{ drawerSite.server_ip || '—' }}</el-descriptions-item>
             <el-descriptions-item label="最新收录">{{ drawerSite.index_updated_at ? number(drawerSite.index_count) : '未采集' }}</el-descriptions-item>
             <el-descriptions-item label="主题">{{ drawerSite.theme_name || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="商品分类">{{ formatSiteCategories(null, drawerSite.product_category) }}</el-descriptions-item>
+            <el-descriptions-item label="商品分类">{{ formatSiteCategories(drawerSite.cat_names, drawerSite.product_category) }}</el-descriptions-item>
             <el-descriptions-item label="域名申请">{{ date(drawerSite.domain_applied_at) }}</el-descriptions-item>
             <el-descriptions-item label="建站时间">{{ date(drawerSite.created_at) }}</el-descriptions-item>
             <el-descriptions-item label="Sitemap 提交">{{ date(drawerSite.last_submitted_at) }}</el-descriptions-item>

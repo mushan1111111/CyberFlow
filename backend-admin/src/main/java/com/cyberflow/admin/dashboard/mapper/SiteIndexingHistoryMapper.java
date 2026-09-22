@@ -59,7 +59,7 @@ public interface SiteIndexingHistoryMapper {
             "<if test='filters.serverIpEmpty'> AND COALESCE(NULLIF(TRIM(COALESCE(NULLIF(l.server_ip, ''), s.server_ip)), ''), '')=''</if>" +
             "<if test='filters.domain != null and filters.domain != &quot;&quot;'> AND s.site_domain LIKE CONCAT('%', #{filters.domain}, '%')</if>" +
             "<if test='filters.themeName != null and filters.themeName != &quot;&quot;'> AND s.theme_name LIKE CONCAT('%', #{filters.themeName}, '%')</if>" +
-            "<if test='filters.productCategory != null and filters.productCategory != &quot;&quot;'> AND s.product_category LIKE CONCAT('%', #{filters.productCategory}, '%')</if>" +
+            "<if test='filters.productCategory != null and filters.productCategory != &quot;&quot;'> AND (s.product_category LIKE CONCAT('%', #{filters.productCategory}, '%') OR CAST(s.cat_names AS CHAR) LIKE CONCAT('%', #{filters.productCategory}, '%'))</if>" +
             "<if test='filters.siteStartDate != null and filters.siteStartDate != &quot;&quot;'> AND s.created_at &gt;= CONCAT(#{filters.siteStartDate}, ' 00:00:00')</if>" +
             "<if test='filters.siteEndDate != null and filters.siteEndDate != &quot;&quot;'> AND s.created_at &lt; DATE_ADD(#{filters.siteEndDate}, INTERVAL 1 DAY)</if>" +
             "<if test='filters.submittedStartDate != null and filters.submittedStartDate != &quot;&quot;'> AND COALESCE(l.last_submitted_at, s.last_submitted_at) &gt;= CONCAT(#{filters.submittedStartDate}, ' 00:00:00')</if>" +
@@ -78,7 +78,7 @@ public interface SiteIndexingHistoryMapper {
     long countLatestSites(@Param("filters") Map<String, Object> filters);
 
     @Select({"<script>", LATEST_INDEX_CTE,
-            "SELECT s.site_domain, s.builder_username, s.admin_name, s.user_group, s.theme_name, s.product_category, s.domain_applied_at, s.created_at,",
+            "SELECT s.site_domain, s.builder_username, s.admin_name, s.user_group, s.theme_name, s.product_category, s.cat_names, s.domain_applied_at, s.created_at,",
             "COALESCE(NULLIF(l.server_name, ''), s.server_name) AS server_name,",
             "COALESCE(NULLIF(l.server_ip, ''), s.server_ip) AS server_ip,",
             "COALESCE(l.last_submitted_at, s.last_submitted_at) AS last_submitted_at,",
@@ -93,7 +93,7 @@ public interface SiteIndexingHistoryMapper {
 
     /** Stream every matching site row for a filtered Excel export. */
     @Select({"<script>", LATEST_INDEX_CTE,
-            "SELECT s.site_domain, s.builder_username, s.admin_name, s.user_group, s.theme_name, s.product_category, s.domain_applied_at, s.created_at,",
+            "SELECT s.site_domain, s.builder_username, s.admin_name, s.user_group, s.theme_name, s.product_category, s.cat_names, s.domain_applied_at, s.created_at,",
             "COALESCE(NULLIF(l.server_name, ''), s.server_name) AS server_name,",
             "COALESCE(NULLIF(l.server_ip, ''), s.server_ip) AS server_ip,",
             "COALESCE(l.last_submitted_at, s.last_submitted_at) AS last_submitted_at,",

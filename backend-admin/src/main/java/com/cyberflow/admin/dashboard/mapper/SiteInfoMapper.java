@@ -145,13 +145,20 @@ public interface SiteInfoMapper {
      *
      * @return 每组包含 product_category（商品分类）和 count（站点数量）的列表
      */
-    @Select("SELECT product_category, COUNT(*) as count FROM site_info GROUP BY product_category ORDER BY count DESC")
+    @Select("SELECT c.category_name AS product_category, COUNT(*) AS count FROM site_info s " +
+            "JOIN JSON_TABLE(CASE WHEN s.cat_names IS NULL OR JSON_LENGTH(s.cat_names) = 0 " +
+            "THEN JSON_ARRAY(COALESCE(NULLIF(TRIM(s.product_category), ''), '未分类')) ELSE s.cat_names END, " +
+            "'$[*]' COLUMNS(category_name VARCHAR(100) PATH '$')) c " +
+            "GROUP BY c.category_name ORDER BY count DESC")
     List<Map<String, Object>> countByCategory();
 
-    @Select("SELECT product_category, COUNT(*) AS count FROM site_info " +
-            "WHERE (#{userGroup} IS NULL OR #{userGroup} = '' OR user_group = #{userGroup}) " +
-            "AND (#{ownerName} IS NULL OR FIND_IN_SET(admin_name, #{ownerName}) > 0) " +
-            "GROUP BY product_category ORDER BY count DESC")
+    @Select("SELECT c.category_name AS product_category, COUNT(*) AS count FROM site_info s " +
+            "JOIN JSON_TABLE(CASE WHEN s.cat_names IS NULL OR JSON_LENGTH(s.cat_names) = 0 " +
+            "THEN JSON_ARRAY(COALESCE(NULLIF(TRIM(s.product_category), ''), '未分类')) ELSE s.cat_names END, " +
+            "'$[*]' COLUMNS(category_name VARCHAR(100) PATH '$')) c " +
+            "WHERE (#{userGroup} IS NULL OR #{userGroup} = '' OR s.user_group = #{userGroup}) " +
+            "AND (#{ownerName} IS NULL OR FIND_IN_SET(s.admin_name, #{ownerName}) > 0) " +
+            "GROUP BY c.category_name ORDER BY count DESC")
     List<Map<String, Object>> countByCategoryForGroup(@Param("userGroup") String userGroup,
                                                       @Param("ownerName") String ownerName);
 
