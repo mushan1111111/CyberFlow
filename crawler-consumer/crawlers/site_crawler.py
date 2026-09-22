@@ -235,6 +235,15 @@ class AsyncSiteCrawler:
                         record["created_at"] = mapped.get("created_at") or applied_at
                         record["cat_names"] = mapped.get("cat_names") or []
                         record["site_tag"] = mapped.get("site_tag", 0)
+                        # The platform only ever returns the category array
+                        # (cat_names); the single product_category field comes back
+                        # empty.  Mirror the array into it so exports, filters and
+                        # the category grouping all have something to work with.
+                        if not record.get("product_category") and record["cat_names"]:
+                            record["product_category"] = "、".join(
+                                str(name).strip() for name in record["cat_names"]
+                                if str(name).strip()
+                            )
                         record["user_group"] = (
                             mapped.get("user_group")
                             or self._user_group(record.get("admin_name"))
