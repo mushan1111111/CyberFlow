@@ -538,6 +538,19 @@ class SiteConsumer(BaseConsumer):
         if not normalized:
             raise RuntimeError("远端未返回任何已建站数据，已停止镜像清理")
 
+        # site/site/list hides theme/category for sites the sync account does not
+        # own; those rows keep their stored values instead of being blanked.
+        missing_theme = [
+            domain for domain, r in normalized.items()
+            if not str(r.get("theme_name") or "").strip()
+            and not str(r.get("product_category") or "").strip()
+        ]
+        if missing_theme:
+            logger.info(
+                f"🛡️ {len(missing_theme)} 个站点本次未返回主题/分类，保留库中原有值"
+                f"（示例：{', '.join(missing_theme[:3])}）"
+            )
+
         async with self.repo.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await self._prepare_active_domain_table(cur, normalized.keys())
@@ -549,16 +562,22 @@ class SiteConsumer(BaseConsumer):
                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                            ON DUPLICATE KEY UPDATE
                              builder_username=COALESCE(NULLIF(VALUES(builder_username), ''), builder_username),
-                             login_url=VALUES(login_url),
-                             wp_admin_user=VALUES(wp_admin_user),
-                             wp_admin_user_pwd=VALUES(wp_admin_user_pwd),
+                             -- site/site/list is permission scoped: the sync account only
+                             -- sees theme/category/login fields for its own sites.  An
+                             -- empty value means "not visible", never "cleared", so keep
+                             -- whatever the personal sync already stored for that site.
+                             login_url=COALESCE(NULLIF(VALUES(login_url), ''), login_url),
+                             wp_admin_user=COALESCE(NULLIF(VALUES(wp_admin_user), ''), wp_admin_user),
+                             wp_admin_user_pwd=COALESCE(NULLIF(VALUES(wp_admin_user_pwd), ''), wp_admin_user_pwd),
                              server_name=COALESCE(NULLIF(VALUES(server_name), ''), server_name),
                              server_ip=COALESCE(NULLIF(VALUES(server_ip), ''), server_ip),
                              admin_name=VALUES(admin_name),
                              user_group=COALESCE(NULLIF(site_info.user_group, ''), NULLIF(VALUES(user_group), '')),
-                             theme_name=VALUES(theme_name),
-                             product_category=VALUES(product_category),
-                             cat_names=VALUES(cat_names),
+                             theme_name=COALESCE(NULLIF(VALUES(theme_name), ''), theme_name),
+                             product_category=COALESCE(NULLIF(VALUES(product_category), ''), product_category),
+                             cat_names=CASE
+                                 WHEN VALUES(cat_names) IS NULL OR JSON_LENGTH(VALUES(cat_names)) = 0 THEN cat_names
+                                 ELSE VALUES(cat_names) END,
                              site_tag=VALUES(site_tag),
                              last_submitted_at=COALESCE(VALUES(last_submitted_at), last_submitted_at),
                              domain_applied_at=COALESCE(VALUES(domain_applied_at), domain_applied_at),
