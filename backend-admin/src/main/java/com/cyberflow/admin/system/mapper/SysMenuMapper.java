@@ -33,7 +33,9 @@ public interface SysMenuMapper extends BaseMapper<SysMenu> {
     @Select("SELECT m.* FROM sys_menu m " +
             "INNER JOIN sys_role_menu rm ON m.id = rm.menu_id " +
             "INNER JOIN sys_user_role ur ON rm.role_id = ur.role_id " +
-            "WHERE ur.user_id = #{userId} AND m.status = 1 AND m.menu_type IN (0, 1) " +
+            "INNER JOIN sys_role r ON r.id = ur.role_id " +
+            "WHERE ur.user_id = #{userId} AND r.status = 1 " +
+            "AND m.status = 1 AND m.menu_type IN (0, 1) " +
             "ORDER BY m.sort_order")
     List<SysMenu> selectMenusByUserId(Long userId);
 }

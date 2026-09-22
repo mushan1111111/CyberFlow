@@ -26,10 +26,11 @@ export default {
           'crawler:schedule:view', 'crawler:schedule:update', 'crawler:schedule:trigger',
           'crawler:site:config:list', 'crawler:site:config:create', 'crawler:site:config:crawl', 'crawler:site:config:delete',
           'selector:template:list', 'selector:template:create', 'selector:template:update', 'selector:template:delete',
+          'category:list', 'category:manage',
           'system:user:list', 'system:user:create', 'system:user:update', 'system:user:delete', 'system:user:assign',
           'system:role:list', 'system:role:create', 'system:role:update', 'system:role:delete', 'system:role:assign',
           'system:menu:list', 'system:menu:create', 'system:menu:update', 'system:menu:delete',
-          'system:log:view',
+          'system:log:view', 'system:notification:view', 'system:notification:manage', 'system:notification:test',
         ],
         menus: [
           {
@@ -54,6 +55,7 @@ export default {
             children: [
               { id: 41, parentId: 4, menuName: '数据源站点', menuType: 1, path: '/crawler/site-config', component: 'crawler/SiteConfig' },
               { id: 42, parentId: 4, menuName: '选择器模板', menuType: 1, path: '/crawler/selector-template', component: 'crawler/SelectorTemplate' },
+              { id: 70, parentId: 4, menuName: '自定义分类', menuType: 1, path: '/categories', component: 'category/CategoryList' },
             ],
           },
           {
@@ -62,6 +64,7 @@ export default {
               { id: 31, parentId: 3, menuName: '用户管理', menuType: 1, path: '/system/user', component: 'system/UserList' },
               { id: 32, parentId: 3, menuName: '角色管理', menuType: 1, path: '/system/role', component: 'system/RoleList' },
               { id: 33, parentId: 3, menuName: '菜单管理', menuType: 1, path: '/system/menu', component: 'system/MenuTree' },
+              { id: 73, parentId: 3, menuName: '通知配置', menuType: 1, path: '/system/notification', component: 'system/NotificationConfig' },
               { id: 34, parentId: 3, menuName: '操作日志', menuType: 1, path: '/system/log', component: 'system/OperationLog' },
             ],
           },
@@ -82,7 +85,7 @@ export default {
       username: 'admin',
       nickname: '系统管理员',
       roles: ['ROLE_ADMIN'],
-      permissions: ['dashboard:overview', 'dashboard:site:view', 'dashboard:order:view', 'dashboard:product:view', 'crawler:site:start', 'crawler:collect:start', 'crawler:order:start', 'crawler:schedule:view', 'crawler:schedule:update', 'crawler:schedule:trigger', 'crawler:site:config:list', 'crawler:site:config:create', 'crawler:site:config:crawl', 'crawler:site:config:delete', 'selector:template:list', 'selector:template:create', 'selector:template:update', 'selector:template:delete', 'system:user:list', 'system:user:create', 'system:user:update', 'system:user:delete', 'system:user:assign', 'system:role:list', 'system:role:create', 'system:role:update', 'system:role:delete', 'system:role:assign', 'system:menu:list', 'system:menu:create', 'system:menu:update', 'system:menu:delete', 'system:log:view'],
+      permissions: ['dashboard:overview', 'dashboard:site:view', 'dashboard:order:view', 'dashboard:product:view', 'crawler:site:start', 'crawler:collect:start', 'crawler:order:start', 'crawler:schedule:view', 'crawler:schedule:update', 'crawler:schedule:trigger', 'crawler:site:config:list', 'crawler:site:config:create', 'crawler:site:config:crawl', 'crawler:site:config:delete', 'selector:template:list', 'selector:template:create', 'selector:template:update', 'selector:template:delete', 'category:list', 'category:manage', 'system:user:list', 'system:user:create', 'system:user:update', 'system:user:delete', 'system:user:assign', 'system:role:list', 'system:role:create', 'system:role:update', 'system:role:delete', 'system:role:assign', 'system:menu:list', 'system:menu:create', 'system:menu:update', 'system:menu:delete', 'system:log:view', 'system:notification:view', 'system:notification:manage', 'system:notification:test'],
       menus: [],
     },
   }),

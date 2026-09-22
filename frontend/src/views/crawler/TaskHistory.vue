@@ -10,7 +10,7 @@
         <div class="history-header">
           <div>
             <span>任务历史</span>
-            <small>检索同步记录、追踪实时进度并查看分块日志</small>
+            <small>检索同步记录、追踪实时进度并查看分块日志 · 时间均为北京时间</small>
           </div>
           <div class="history-actions">
             <span class="auto-refresh-label">执行中自动刷新</span>
@@ -54,7 +54,7 @@
       <el-table-column label="任务" min-width="210">
         <template #default="{ row }">
           <div class="task-id-cell">{{ row.taskId }}</div>
-          <div class="task-meta">{{ formatDate(row.createdAt) }} · {{ triggerLabel(row) }}</div>
+          <div class="task-meta">{{ formatBeijingDateTime(row.createdAt) }} · {{ triggerLabel(row) }}</div>
         </template>
       </el-table-column>
       <el-table-column prop="type" label="类型" width="118">
@@ -160,6 +160,7 @@ import { ref, nextTick, onMounted, onUnmounted, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getRecentTasks, getTaskSummary, getTaskOverview, getTaskCrawlLog, downloadTaskCrawlLog, pauseTask, resumeTask, deleteTask } from '@/api/crawler'
 import { useUserStore } from '@/store/user'
+import { formatBeijingDateTime } from '@/utils/dateTime'
 
 /** 表格 loading 状态 */
 const loading = ref(false)
@@ -319,10 +320,6 @@ function taskTypeLabel(type) {
     product_crawl: '商品爬取',
     site_account: '站点账号同步',
   }[type] || '采集任务'
-}
-
-function formatDate(value) {
-  return value ? String(value).replace('T', ' ').slice(0, 19) : '时间未记录'
 }
 
 function formatDuration(value) {

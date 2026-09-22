@@ -3,6 +3,7 @@ package com.cyberflow.admin.dashboard.mapper;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Delete;
 
 import java.util.List;
 import java.util.Map;
@@ -18,6 +19,10 @@ import java.util.Map;
  */
 @Mapper
 public interface SiteInfoMapper {
+
+    /** Delete every site master row. This operation is exposed to administrators only. */
+    @Delete("DELETE FROM site_info")
+    int deleteAllSites();
 
     /** Count sites with combinable administrator, domain and creation-date filters. */
     @Select({

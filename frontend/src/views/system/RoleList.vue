@@ -6,7 +6,7 @@
   <el-card>
     <template #header>
       <span>角色管理</span>
-      <el-button type="primary" size="small" style="float: right" @click="openDialog()">新增角色</el-button>
+      <el-button v-if="canCreate" type="primary" size="small" style="float: right" @click="openDialog()">新增角色</el-button>
     </template>
 
     <el-table :data="tableData" v-loading="loading" stripe>
@@ -19,11 +19,11 @@
           <el-tag :type="row.status === 1 ? 'success' : 'danger'">{{ row.status === 1 ? '启用' : '禁用' }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="250" fixed="right">
+      <el-table-column v-if="canManage" label="操作" width="250" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" @click="openDialog(row)">编辑</el-button>
-          <el-button size="small" type="primary" @click="openMenuDialog(row)">分配菜单</el-button>
-          <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
+          <el-button v-if="canUpdate" size="small" @click="openDialog(row)">编辑</el-button>
+          <el-button v-if="canAssign" size="small" type="primary" :disabled="row.roleCode === 'ROLE_ADMIN'" @click="openMenuDialog(row)">分配菜单</el-button>
+          <el-button v-if="canDelete" size="small" type="danger" :disabled="row.roleCode === 'ROLE_ADMIN'" @click="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -49,7 +49,7 @@
           <el-input v-model="form.description" type="textarea" :rows="3" />
         </el-form-item>
         <el-form-item label="状态">
-          <el-switch v-model="form.status" :active-value="1" :inactive-value="0" />
+          <el-switch v-model="form.status" :active-value="1" :inactive-value="0" :disabled="isEdit && form.roleCode === 'ROLE_ADMIN'" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -76,8 +76,9 @@
 </template>
 
 <script setup>
-import { nextTick, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useUserStore } from '@/store/user'
 import {
   assignRoleMenus,
   createRole,
@@ -87,6 +88,13 @@ import {
   getRoles,
   updateRole,
 } from '@/api/system'
+
+const userStore = useUserStore()
+const canCreate = computed(() => userStore.hasPermission('system:role:create'))
+const canUpdate = computed(() => userStore.hasPermission('system:role:update'))
+const canDelete = computed(() => userStore.hasPermission('system:role:delete'))
+const canAssign = computed(() => userStore.hasPermission('system:role:assign'))
+const canManage = computed(() => canUpdate.value || canDelete.value || canAssign.value)
 
 const loading = ref(false)
 const saving = ref(false)
@@ -176,7 +184,9 @@ async function openMenuDialog(row) {
 async function handleAssignMenus() {
   assigning.value = true
   try {
-    await assignRoleMenus(currentRoleId.value, treeRef.value?.getCheckedKeys(false) || [])
+    const checked = treeRef.value?.getCheckedKeys(false) || []
+    const halfChecked = treeRef.value?.getHalfCheckedKeys() || []
+    await assignRoleMenus(currentRoleId.value, [...new Set([...checked, ...halfChecked])])
     ElMessage.success('菜单权限已保存')
     menuDialogVisible.value = false
   } catch {

@@ -3,6 +3,7 @@ package com.cyberflow.admin.system.service;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cyberflow.admin.system.entity.SysUser;
 import com.cyberflow.admin.system.entity.SysUserRole;
+import com.cyberflow.admin.system.mapper.SysRoleMapper;
 import com.cyberflow.admin.system.mapper.SysUserMapper;
 import com.cyberflow.admin.system.mapper.SysUserRoleMapper;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +15,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Objects;
 
 /**
  * 系统用户业务服务。
@@ -35,6 +38,8 @@ public class SysUserService extends ServiceImpl<SysUserMapper, SysUser> implemen
 
     /** 用户-角色关联 Mapper，用于角色分配操作 */
     private final SysUserRoleMapper userRoleMapper;
+
+    private final SysRoleMapper roleMapper;
 
     /** 密码编码器，用于密码加密和校验 */
     private final PasswordEncoder passwordEncoder;
@@ -92,6 +97,10 @@ public class SysUserService extends ServiceImpl<SysUserMapper, SysUser> implemen
      */
     @Transactional
     public boolean createUser(SysUser user) {
+        validateUser(user, true);
+        if (getByUsername(user.getUsername()) != null) {
+            throw new IllegalArgumentException("用户名已存在");
+        }
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         return save(user);
     }
@@ -107,7 +116,26 @@ public class SysUserService extends ServiceImpl<SysUserMapper, SysUser> implemen
      */
     @Transactional
     public boolean updateUser(SysUser user) {
+        return updateUser(user, null);
+    }
+
+    @Transactional
+    public boolean updateUser(SysUser user, String currentUsername) {
+        if (user == null || user.getId() == null) throw new IllegalArgumentException("用户不存在");
+        SysUser previous = getById(user.getId());
+        if (previous == null) throw new IllegalArgumentException("用户不存在");
+        user.setUsername(previous.getUsername());
+        validateUser(user, false);
+        if (Objects.equals(previous.getUsername(), currentUsername) && user.getStatus() == 0) {
+            throw new IllegalArgumentException("不能禁用当前登录账号");
+        }
+        if (previous.getStatus() == 1 && user.getStatus() == 0
+                && hasRole(previous.getId(), "ROLE_ADMIN")
+                && userMapper.countActiveUsersByRoleCode("ROLE_ADMIN") <= 1) {
+            throw new IllegalArgumentException("至少需要保留一个启用的管理员账号");
+        }
         if (user.getPassword() != null && !user.getPassword().isBlank()) {
+            validatePassword(user.getPassword());
             user.setPassword(passwordEncoder.encode(user.getPassword()));
         } else {
             user.setPassword(null);
@@ -127,14 +155,79 @@ public class SysUserService extends ServiceImpl<SysUserMapper, SysUser> implemen
      */
     @Transactional
     public void assignRoles(Long userId, List<Long> roleIds) {
+        SysUser target = getById(userId);
+        if (target == null) throw new IllegalArgumentException("用户不存在");
+        List<Long> normalized = roleIds == null ? List.of()
+                : new LinkedHashSet<>(roleIds).stream().filter(Objects::nonNull).toList();
+        if (!normalized.isEmpty() && roleMapper.selectBatchIds(normalized).size() != normalized.size()) {
+            throw new IllegalArgumentException("角色不存在或已删除");
+        }
+        boolean removingLastAdmin = target.getStatus() == 1 && hasRole(userId, "ROLE_ADMIN")
+                && normalized.stream().noneMatch(this::isAdminRole)
+                && userMapper.countActiveUsersByRoleCode("ROLE_ADMIN") <= 1;
+        if (removingLastAdmin) {
+            throw new IllegalArgumentException("至少需要保留一个启用的管理员账号");
+        }
         userRoleMapper.deleteByUserId(userId);
-        if (roleIds != null) {
-            roleIds.forEach(roleId -> {
+        normalized.forEach(roleId -> {
                 SysUserRole ur = new SysUserRole();
                 ur.setUserId(userId);
                 ur.setRoleId(roleId);
                 userRoleMapper.insert(ur);
-            });
+        });
+    }
+
+    @Transactional
+    public void deleteUser(Long userId, String currentUsername) {
+        SysUser user = getById(userId);
+        if (user == null) throw new IllegalArgumentException("用户不存在");
+        if (Objects.equals(user.getUsername(), currentUsername)) {
+            throw new IllegalArgumentException("不能删除当前登录账号");
+        }
+        if (user.getStatus() == 1 && hasRole(userId, "ROLE_ADMIN")
+                && userMapper.countActiveUsersByRoleCode("ROLE_ADMIN") <= 1) {
+            throw new IllegalArgumentException("至少需要保留一个启用的管理员账号");
+        }
+        userRoleMapper.deleteByUserId(userId);
+        removeById(userId);
+    }
+
+    private boolean hasRole(Long userId, String roleCode) {
+        return userMapper.countUserRoleCode(userId, roleCode) > 0;
+    }
+
+    private boolean isAdminRole(Long roleId) {
+        var role = roleMapper.selectById(roleId);
+        return role != null && "ROLE_ADMIN".equals(role.getRoleCode());
+    }
+
+    private void validateUser(SysUser user, boolean requirePassword) {
+        if (user == null) throw new IllegalArgumentException("用户信息不能为空");
+        String username = user.getUsername() == null ? "" : user.getUsername().trim();
+        if (username.isEmpty() || username.length() > 50) {
+            throw new IllegalArgumentException("用户名长度须为 1–50 个字符");
+        }
+        user.setUsername(username);
+        if (requirePassword) validatePassword(user.getPassword());
+        if (user.getNickname() != null && user.getNickname().length() > 50) {
+            throw new IllegalArgumentException("昵称不能超过 50 个字符");
+        }
+        if (user.getDataOwner() != null && user.getDataOwner().length() > 1000) {
+            throw new IllegalArgumentException("数据归属内容过长");
+        }
+        if (user.getEmail() != null && !user.getEmail().isBlank()
+                && (!user.getEmail().contains("@") || user.getEmail().length() > 100)) {
+            throw new IllegalArgumentException("邮箱格式不正确");
+        }
+        if (user.getStatus() == null) user.setStatus(1);
+        if (user.getStatus() != 0 && user.getStatus() != 1) {
+            throw new IllegalArgumentException("用户状态无效");
+        }
+    }
+
+    private void validatePassword(String password) {
+        if (password == null || password.length() < 8 || password.length() > 72) {
+            throw new IllegalArgumentException("密码长度须为 8–72 个字符");
         }
     }
 }

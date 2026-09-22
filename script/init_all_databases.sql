@@ -99,7 +99,9 @@ CREATE TABLE IF NOT EXISTS sys_user_role (
     role_id BIGINT NOT NULL,
     UNIQUE KEY uk_user_role (user_id, role_id),
     INDEX idx_user_id (user_id),
-    INDEX idx_role_id (role_id)
+    INDEX idx_role_id (role_id),
+    CONSTRAINT fk_sys_user_role_user FOREIGN KEY (user_id) REFERENCES sys_user(id) ON DELETE CASCADE,
+    CONSTRAINT fk_sys_user_role_role FOREIGN KEY (role_id) REFERENCES sys_role(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户角色关联';
 
 -- ------------------------------------------------------------
@@ -111,7 +113,9 @@ CREATE TABLE IF NOT EXISTS sys_role_menu (
     menu_id BIGINT NOT NULL,
     UNIQUE KEY uk_role_menu (role_id, menu_id),
     INDEX idx_role_id (role_id),
-    INDEX idx_menu_id (menu_id)
+    INDEX idx_menu_id (menu_id),
+    CONSTRAINT fk_sys_role_menu_role FOREIGN KEY (role_id) REFERENCES sys_role(id) ON DELETE CASCADE,
+    CONSTRAINT fk_sys_role_menu_menu FOREIGN KEY (menu_id) REFERENCES sys_menu(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色菜单关联';
 
 -- ------------------------------------------------------------
@@ -390,6 +394,9 @@ CREATE TABLE IF NOT EXISTS site_info (
     username         VARCHAR(100) COMMENT '电商平台用户名',
     builder_username VARCHAR(100) COMMENT '建站者账号',
     site_domain      VARCHAR(255) NOT NULL COMMENT '站点域名',
+    login_url        VARCHAR(1000) COMMENT 'WordPress 登录地址（site/site/list.login_url）',
+    wp_admin_user    VARCHAR(255) COMMENT 'WordPress 登录账户（site/site/list.wp_admin_user）',
+    wp_admin_user_pwd VARCHAR(500) COMMENT 'WordPress 登录密码（site/site/list.wp_admin_user_pwd）',
     server_name      VARCHAR(255) COMMENT '站点所在服务器',
     server_ip        VARCHAR(45) COMMENT '站点服务器 IP',
     admin_name       VARCHAR(100) COMMENT '管理员名称',
@@ -1177,10 +1184,33 @@ INSERT INTO sys_menu(id,parent_id,menu_name,menu_type,perms,path,component,icon,
 (16,6,'站点明细',1,'dashboard:site:view','/indexing/sites','dashboard/IndexingList','Document',1,1),
 (68,6,'建站者汇总',1,'dashboard:site:view','/indexing/builders','dashboard/IndexingList','User',2,1),
 (69,6,'服务器汇总',1,'dashboard:site:view','/indexing/servers','dashboard/IndexingList','Monitor',3,1),
-(70,0,'自定义分类',1,'category:list','/categories','category/CategoryList','CollectionTag',6,1),
+(70,4,'自定义分类',1,'category:list','/categories','category/CategoryList','CollectionTag',3,1),
 (71,70,'维护自定义分类',2,'category:manage',NULL,NULL,NULL,1,1)
 ON DUPLICATE KEY UPDATE parent_id=VALUES(parent_id),menu_name=VALUES(menu_name),menu_type=VALUES(menu_type),perms=VALUES(perms),path=VALUES(path),component=VALUES(component),icon=VALUES(icon),sort_order=VALUES(sort_order),status=VALUES(status);
 INSERT IGNORE INTO sys_role_menu(role_id,menu_id) SELECT role_id,6 FROM sys_role_menu WHERE menu_id=16;
 INSERT IGNORE INTO sys_role_menu(role_id,menu_id) SELECT role_id,68 FROM sys_role_menu WHERE menu_id=16;
 INSERT IGNORE INTO sys_role_menu(role_id,menu_id) SELECT role_id,69 FROM sys_role_menu WHERE menu_id=16;
 INSERT IGNORE INTO sys_role_menu(role_id,menu_id) VALUES(1,70),(1,71),(2,70),(2,71);
+INSERT IGNORE INTO sys_role_menu(role_id,menu_id) SELECT role_id,4 FROM sys_role_menu WHERE menu_id=70;
+
+-- Administrator-managed chat robot notification channels.
+CREATE TABLE IF NOT EXISTS sys_notification_channel (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    platform VARCHAR(20) NOT NULL,
+    webhook_url VARCHAR(2000) NOT NULL,
+    signing_secret VARCHAR(2000) NULL,
+    message_template VARCHAR(4000) NULL,
+    enabled TINYINT NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_notification_enabled (enabled, platform)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO sys_menu(id,parent_id,menu_name,menu_type,perms,path,component,icon,sort_order,status) VALUES
+(73,3,'通知配置',1,'system:notification:view','/system/notification','system/NotificationConfig','Bell',4,1),
+(74,73,'管理通知机器人',2,'system:notification:manage',NULL,NULL,NULL,1,1),
+(75,73,'测试通知机器人',2,'system:notification:test',NULL,NULL,NULL,2,1)
+ON DUPLICATE KEY UPDATE parent_id=VALUES(parent_id),menu_name=VALUES(menu_name),menu_type=VALUES(menu_type),perms=VALUES(perms),path=VALUES(path),component=VALUES(component),icon=VALUES(icon),sort_order=VALUES(sort_order),status=VALUES(status);
+UPDATE sys_menu SET sort_order=5 WHERE id=34;
+INSERT IGNORE INTO sys_role_menu(role_id,menu_id)
+SELECT r.id,m.id FROM sys_role r CROSS JOIN sys_menu m WHERE r.role_code='ROLE_ADMIN' AND m.id IN(73,74,75);

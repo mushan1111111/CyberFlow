@@ -3,6 +3,7 @@ package com.cyberflow.admin;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.retry.annotation.EnableRetry;
+import org.springframework.scheduling.annotation.EnableAsync;
 
 /**
  * CyberFlow 后台管理系统启动类。
@@ -15,6 +16,7 @@ import org.springframework.retry.annotation.EnableRetry;
  */
 @SpringBootApplication
 @EnableRetry
+@EnableAsync
 public class CyberFlowAdminApplication {
 
     /**

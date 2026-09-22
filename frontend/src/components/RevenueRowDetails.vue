@@ -10,7 +10,7 @@
     <section class="category-section">
       <div class="classification-heading">
         <strong>站点商品分类明细</strong>
-        <span>按站点分类标签占比</span>
+        <span>按当前筛选范围内的去重订单占比</span>
       </div>
       <div v-if="categoryItems.length" class="category-content">
         <VChart :option="categoryChartOption" autoresize class="category-chart" />
@@ -18,11 +18,29 @@
           <div v-for="(item, index) in categoryItems" :key="item.category" class="category-legend-item">
             <i :style="{ background: chartColors[index % chartColors.length] }"></i>
             <span :title="item.category">{{ item.category }}</span>
-            <strong>{{ formatNumber(item.site_count) }} 站 · {{ formatRatio(item.ratio) }}</strong>
+            <strong>{{ formatNumber(item.order_count) }} 笔 · {{ formatRatio(item.ratio) }}</strong>
           </div>
         </div>
       </div>
       <el-empty v-else :image-size="46" description="暂无商品分类数据" />
+    </section>
+
+    <section class="category-section">
+      <div class="classification-heading">
+        <strong>客户国家占比</strong>
+        <span>按去重订单占比</span>
+      </div>
+      <div v-if="countryItems.length" class="category-content">
+        <VChart :option="countryChartOption" autoresize class="category-chart" />
+        <div class="category-legend">
+          <div v-for="(item, index) in countryItems" :key="item.country" class="category-legend-item">
+            <i :style="{ background: countryColors[index % countryColors.length] }"></i>
+            <span :title="item.country">{{ item.country }}</span>
+            <strong>{{ formatNumber(item.order_count) }} 笔 · {{ formatRatio(item.ratio) }}</strong>
+          </div>
+        </div>
+      </div>
+      <el-empty v-else :image-size="46" description="暂无客户国家数据" />
     </section>
 
     <section class="classification-section">
@@ -58,22 +76,24 @@ const props = defineProps({
   details: { type: Array, default: () => [] },
   breakdown: { type: Array, default: () => [] },
   categoryBreakdown: { type: Array, default: () => [] },
+  countryBreakdown: { type: Array, default: () => [] },
 })
 
 const chartColors = ['#536ff1', '#45b98c', '#f0a44b', '#8a64e8', '#e06f83', '#47a7cf', '#8cac48', '#d58449', '#697a9c', '#b46dac']
+const countryColors = ['#3f78d7', '#e89b43', '#43ad88', '#8d66d9', '#dc687e', '#4da3bb', '#9aaf4e', '#c77a4d', '#65758e', '#aa699b']
 const categoryItems = computed(() => props.categoryBreakdown
   .map(item => ({
     category: String(item?.category || '未分类'),
-    site_count: Number(item?.site_count || 0),
+    order_count: Number(item?.order_count || 0),
     ratio: Number(item?.ratio || 0),
   }))
-  .filter(item => item.site_count > 0))
+  .filter(item => item.order_count > 0))
 const categoryChartOption = computed(() => ({
   color: chartColors,
   tooltip: {
     trigger: 'item',
     renderMode: 'richText',
-    formatter: params => `${params.name}\n${formatNumber(params.value)} 站 · ${Number(params.percent || 0).toFixed(2)}%`,
+    formatter: params => `${params.name}\n${formatNumber(params.value)} 笔 · ${Number(params.percent || 0).toFixed(2)}%`,
   },
   series: [{
     type: 'pie',
@@ -84,7 +104,33 @@ const categoryChartOption = computed(() => ({
     itemStyle: { borderColor: '#fff', borderWidth: 2, borderRadius: 4 },
     label: { show: false },
     emphasis: { scaleSize: 7 },
-    data: categoryItems.value.map(item => ({ name: item.category, value: item.site_count })),
+    data: categoryItems.value.map(item => ({ name: item.category, value: item.order_count })),
+  }],
+}))
+const countryItems = computed(() => props.countryBreakdown
+  .map(item => ({
+    country: String(item?.country || '未知'),
+    order_count: Number(item?.order_count || 0),
+    ratio: Number(item?.ratio || 0),
+  }))
+  .filter(item => item.order_count > 0))
+const countryChartOption = computed(() => ({
+  color: countryColors,
+  tooltip: {
+    trigger: 'item',
+    renderMode: 'richText',
+    formatter: params => `${params.name}\n${formatNumber(params.value)} 笔 · ${Number(params.percent || 0).toFixed(2)}%`,
+  },
+  series: [{
+    type: 'pie',
+    radius: ['48%', '74%'],
+    center: ['50%', '50%'],
+    minAngle: 2,
+    avoidLabelOverlap: true,
+    itemStyle: { borderColor: '#fff', borderWidth: 2, borderRadius: 4 },
+    label: { show: false },
+    emphasis: { scaleSize: 7 },
+    data: countryItems.value.map(item => ({ name: item.country, value: item.order_count })),
   }],
 }))
 

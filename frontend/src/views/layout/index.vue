@@ -87,14 +87,6 @@
       </el-header>
 
       <el-main class="page-main">
-        <section v-if="route.name !== 'DashboardOverview'" class="route-heading">
-          <div>
-            <p class="route-eyebrow">{{ route.meta.section || 'CYBERFLOW' }}</p>
-            <h1>{{ route.meta.title }}</h1>
-            <p class="route-description">{{ route.meta.description }}</p>
-          </div>
-          <span class="route-index">{{ routeIndex }}</span>
-        </section>
         <router-view v-slot="{ Component }">
           <transition name="page-fade" mode="out-in">
             <component :is="Component" :key="route.path" />
@@ -144,6 +136,7 @@ const routePermissions = {
   '/system/user': 'system:user:list',
   '/system/role': 'system:role:list',
   '/system/menu': 'system:menu:list',
+  '/system/notification': 'system:notification:view',
   '/system/log': 'system:log:view',
 }
 const serverMenuPaths = computed(() => {
@@ -160,7 +153,7 @@ const canViewPath = path => {
   if (serverMenuPaths.value.has(path)) return true
   const requiredPermission = routePermissions[path]
   if (Array.isArray(requiredPermission)) return requiredPermission.some(permission => userStore.hasPermission(permission))
-  return requiredPermission ? userStore.hasPermission(requiredPermission) : !userStore.userInfo?.menus?.length
+  return requiredPermission ? userStore.hasPermission(requiredPermission) : false
 }
 const findMenuNode = (nodes, path) => {
   for (const node of nodes || []) {
@@ -181,7 +174,6 @@ const fallbackMenus = [
     { id: 13, menuName: '订单列表', path: '/dashboard/orders' },
     { id: 14, menuName: '商品列表', path: '/dashboard/products' },
   ] },
-  { id:70, menuName:'自定义分类',path:'/categories',icon:'CollectionTag',children:[] },
   { id: 2, menuName: '数据同步', icon: 'RefreshRight', children: [
     { id: 21, menuName: '站点、收录与订单同步', path: '/crawler/site' },
     { id: 35, menuName: '收入参数', path: '/crawler/revenue-config' },
@@ -191,6 +183,7 @@ const fallbackMenus = [
   { id: 4, menuName: '商品采集', icon: 'Goods', children: [
     { id: 41, menuName: '数据源站点', path: '/crawler/site-config' },
     { id: 42, menuName: '选择器模板', path: '/crawler/selector-template' },
+    { id: 70, menuName: '自定义分类', path: '/categories' },
   ] },
   { id: 5, menuName: '站点建设', icon: 'Shop', children: [
     { id: 63, menuName: '新站点管理', path: '/new-site' },
@@ -199,6 +192,7 @@ const fallbackMenus = [
     { id: 31, menuName: '用户管理', path: '/system/user' },
     { id: 32, menuName: '角色管理', path: '/system/role' },
     { id: 33, menuName: '菜单管理', path: '/system/menu' },
+    { id: 73, menuName: '通知配置', path: '/system/notification' },
     { id: 34, menuName: '操作日志', path: '/system/log' },
   ] },
 ]
@@ -283,12 +277,6 @@ const menuTree = computed(() => {
 })
 const displayName = computed(() => userStore.userInfo?.nickname || userStore.userInfo?.username || '管理员')
 const avatarText = computed(() => displayName.value.slice(0, 1))
-const routeIndex = computed(() => {
-  const routes = router.getRoutes().filter(item => item.meta?.title && item.name !== 'Login')
-  const index = routes.findIndex(item => item.name === route.name)
-  return String(Math.max(0, index) + 1).padStart(2, '0')
-})
-
 onMounted(async () => {
   if (userStore.token) await userStore.refreshUserInfo().catch(() => {})
 })
@@ -366,12 +354,6 @@ async function handleMenuSelect(path) {
 .profile-copy small { color: #98a5b8; font-size: 10px; }
 .profile-button > .el-icon { color: #9ca8b9; font-size: 12px; }
 .page-main { min-width: 0; padding: 30px 34px 48px; overflow-y: auto; }
-.route-heading { display: flex; max-width: 1440px; align-items: flex-end; justify-content: space-between; margin: 0 auto 22px; }
-.route-heading p, .route-heading h1 { margin: 0; }
-.route-eyebrow { margin-bottom: 7px !important; color: var(--cf-blue); font-size: 9px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
-.route-heading h1 { color: var(--cf-ink); font-size: 27px; letter-spacing: -.045em; }
-.route-description { margin-top: 7px !important; color: var(--cf-muted); font-size: 12px; }
-.route-index { color: #e1e5ed; font-size: 44px; font-weight: 760; letter-spacing: -.06em; line-height: .9; }
 .page-fade-enter-active, .page-fade-leave-active { transition: opacity .18s ease, transform .18s ease; }
 .page-fade-enter-from { opacity: 0; transform: translateY(5px); }
 .page-fade-leave-to { opacity: 0; transform: translateY(-3px); }
@@ -385,9 +367,5 @@ async function handleMenuSelect(path) {
 @media (max-width: 560px) {
   .breadcrumb-root, .breadcrumb-wrap > .el-icon { display: none; }
   .topbar-right { gap: 4px; }
-  .route-heading { align-items: flex-start; }
-  .route-heading h1 { font-size: 24px; }
-  .route-description { max-width: 270px; line-height: 1.6; }
-  .route-index { display: none; }
 }
 </style>

@@ -52,6 +52,11 @@ export function getSites(params) {
   return request.get('/admin/dashboard/sites', { params })
 }
 
+/** 管理员清空全部站点资料及收录历史，保留订单与商品。 */
+export function clearAllSites() {
+  return request.delete('/admin/dashboard/sites/clear')
+}
+
 /**
  * 获取订单列表（分页）
  * @param {Object} params - 查询参数 { page, size, orderId, domain, adminName, payStatus, currency, country, startDate, endDate }

@@ -3,6 +3,7 @@ package com.cyberflow.admin.crawler.config.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cyberflow.admin.crawler.config.entity.CrawlerRuntimeConfig;
 import com.cyberflow.admin.crawler.config.entity.CrawlerScheduleConfig;
+import com.cyberflow.admin.crawler.config.CrawlerTimeZone;
 import com.cyberflow.admin.crawler.config.mapper.CrawlerRuntimeConfigMapper;
 import com.cyberflow.admin.crawler.config.mapper.CrawlerScheduleConfigMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -10,7 +11,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.quartz.CronScheduleBuilder;
 import org.quartz.CronExpression;
 import org.quartz.Scheduler;
 import org.quartz.SchedulerException;
@@ -345,7 +345,7 @@ public class CrawlerConfigService {
                 scheduler.rescheduleJob(triggerKey, TriggerBuilder.newTrigger()
                     .withIdentity(triggerKey)
                     .forJob(current.getJobKey())
-                    .withSchedule(CronScheduleBuilder.cronSchedule(cronExpression))
+                    .withSchedule(CrawlerTimeZone.cronSchedule(cronExpression))
                     .build());
                 log.info("Crawler schedule applied: taskType={}, cron={}", taskType, cronExpression);
             }

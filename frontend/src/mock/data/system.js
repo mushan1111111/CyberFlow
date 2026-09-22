@@ -19,11 +19,17 @@ const roles = [
   { id: 2, role_name: '运营人员', role_code: 'ROLE_OPERATOR', description: '可查看数据看板、触发爬虫', status: 1, created_at: now },
 ]
 
+const defaultNotificationTemplate = '【{{title}}】\n{{content}}\n\n渠道：{{channel}}\n时间：{{time}}（北京时间）'
+let notificationChannels = [
+  { id: 1, name: '运维告警群', platform: 'DINGTALK', platformLabel: '钉钉', webhookConfigured: true, signingSecretConfigured: true, messageTemplate: defaultNotificationTemplate, enabled: true, createdAt: now, updatedAt: now },
+]
+
 /** @type {Array<Object>} 一级菜单节点（目录类型，children 动态构建） */
 const menus = [
   { id: 1, parent_id: 0, menu_name: '数据看板', menu_type: 0, perms: null, path: '/dashboard', icon: 'DataBoard', sort_order: 1, status: 1, children: [] },
   { id: 2, parent_id: 0, menu_name: '爬虫管理', menu_type: 0, perms: null, path: '/crawler', icon: 'Cpu', sort_order: 2, status: 1, children: [] },
   { id: 3, parent_id: 0, menu_name: '系统管理', menu_type: 0, perms: null, path: '/system', icon: 'Setting', sort_order: 3, status: 1, children: [] },
+  { id: 4, parent_id: 0, menu_name: '商品采集', menu_type: 0, perms: null, path: '/crawler/product', icon: 'Goods', sort_order: 4, status: 1, children: [] },
 ]
 
 /** @type {Array<Object>} 二级及以下菜单节点（菜单类型 + 按钮类型） */
@@ -39,10 +45,15 @@ const childMenus = [
   { id: 27, parent_id: 21, menu_name: '触发订单同步', menu_type: 2, perms: 'crawler:order:start', path: null, icon: null, sort_order: 4, status: 1 },
   { id: 51, parent_id: 21, menu_name: '修改订单配置', menu_type: 2, perms: 'crawler:order:config', path: null, icon: null, sort_order: 5, status: 1 },
   { id: 24, parent_id: 2, menu_name: '任务历史', menu_type: 1, perms: null, path: '/crawler/history', icon: null, sort_order: 4, status: 1 },
+  { id: 70, parent_id: 4, menu_name: '自定义分类', menu_type: 1, perms: 'category:list', path: '/categories', icon: 'CollectionTag', sort_order: 3, status: 1 },
+  { id: 71, parent_id: 70, menu_name: '维护自定义分类', menu_type: 2, perms: 'category:manage', path: null, icon: null, sort_order: 1, status: 1 },
   { id: 31, parent_id: 3, menu_name: '用户管理', menu_type: 1, perms: 'system:user:list', path: '/system/user', icon: null, sort_order: 1, status: 1 },
   { id: 32, parent_id: 3, menu_name: '角色管理', menu_type: 1, perms: 'system:role:list', path: '/system/role', icon: null, sort_order: 2, status: 1 },
   { id: 33, parent_id: 3, menu_name: '菜单管理', menu_type: 1, perms: 'system:menu:list', path: '/system/menu', icon: null, sort_order: 3, status: 1 },
-  { id: 34, parent_id: 3, menu_name: '操作日志', menu_type: 1, perms: 'system:log:view', path: '/system/log', icon: null, sort_order: 4, status: 1 },
+  { id: 34, parent_id: 3, menu_name: '操作日志', menu_type: 1, perms: 'system:log:view', path: '/system/log', icon: null, sort_order: 5, status: 1 },
+  { id: 73, parent_id: 3, menu_name: '通知配置', menu_type: 1, perms: 'system:notification:view', path: '/system/notification', icon: 'Bell', sort_order: 4, status: 1 },
+  { id: 74, parent_id: 73, menu_name: '管理通知机器人', menu_type: 2, perms: 'system:notification:manage', path: null, icon: null, sort_order: 1, status: 1 },
+  { id: 75, parent_id: 73, menu_name: '测试通知机器人', menu_type: 2, perms: 'system:notification:test', path: null, icon: null, sort_order: 2, status: 1 },
 ]
 
 /**
@@ -160,5 +171,22 @@ export default {
     const size = parseInt(params.size) || 10
     const start = (page - 1) * size
     return { code: 200, msg: 'success', data: { records: logs.slice(start, start + size), total: logs.length, size, current: page, pages: Math.ceil(logs.length / size) } }
+  },
+
+  notificationList: () => ({ code: 200, msg: 'success', data: notificationChannels }),
+  notificationCreate: (body) => {
+    const platformLabels = { DINGTALK: '钉钉', FEISHU: '飞书', LARK: 'Lark' }
+    const row = { id: Date.now(), name: body.name, platform: body.platform, platformLabel: platformLabels[body.platform], webhookConfigured: true, signingSecretConfigured: Boolean(body.signingSecret), messageTemplate: body.messageTemplate || defaultNotificationTemplate, enabled: body.enabled !== false, createdAt: now, updatedAt: now }
+    notificationChannels.unshift(row)
+    return { code: 200, msg: 'success', data: row }
+  },
+  notificationUpdate: (id, body) => {
+    const row = notificationChannels.find(item => item.id === Number(id))
+    if (row) Object.assign(row, body, { signingSecretConfigured: body.clearSigningSecret ? false : row.signingSecretConfigured || Boolean(body.signingSecret), updatedAt: now })
+    return { code: 200, msg: 'success', data: row }
+  },
+  notificationDelete: id => {
+    notificationChannels = notificationChannels.filter(item => item.id !== Number(id))
+    return { code: 200, msg: 'success', data: null }
   },
 }

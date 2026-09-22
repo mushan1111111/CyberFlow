@@ -64,7 +64,7 @@ public class SysRoleController {
     @PostMapping
     @PreAuthorize("hasAuthority('system:role:create')")
     public Result<Void> create(@RequestBody SysRole role) {
-        roleService.save(role);
+        roleService.createRole(role);
         return Result.ok();
     }
 
@@ -79,7 +79,7 @@ public class SysRoleController {
     @PreAuthorize("hasAuthority('system:role:update')")
     public Result<Void> update(@PathVariable Long id, @RequestBody SysRole role) {
         role.setId(id);
-        roleService.updateById(role);
+        roleService.updateRole(role);
         return Result.ok();
     }
 
@@ -92,7 +92,7 @@ public class SysRoleController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('system:role:delete')")
     public Result<Void> delete(@PathVariable Long id) {
-        roleService.removeById(id);
+        roleService.deleteRole(id);
         return Result.ok();
     }
 

@@ -6,6 +6,7 @@ import com.cyberflow.admin.system.entity.SysUser;
 import com.cyberflow.admin.system.service.SysUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -76,9 +77,9 @@ public class SysUserController {
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('system:user:update')")
-    public Result<Void> update(@PathVariable Long id, @RequestBody SysUser user) {
+    public Result<Void> update(@PathVariable Long id, @RequestBody SysUser user, Authentication authentication) {
         user.setId(id);
-        userService.updateUser(user);
+        userService.updateUser(user, authentication.getName());
         return Result.ok();
     }
 
@@ -90,8 +91,8 @@ public class SysUserController {
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('system:user:delete')")
-    public Result<Void> delete(@PathVariable Long id) {
-        userService.removeById(id);
+    public Result<Void> delete(@PathVariable Long id, Authentication authentication) {
+        userService.deleteUser(id, authentication.getName());
         return Result.ok();
     }
 

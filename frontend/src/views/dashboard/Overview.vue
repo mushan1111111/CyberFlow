@@ -65,7 +65,7 @@
         <el-tab-pane label="个人绩效" name="personal">
           <el-table :data="personalPerformance" stripe max-height="390" empty-text="暂无绩效数据" class="compact-revenue-table">
             <el-table-column type="expand" label="详情" width="62">
-              <template #default="{ row }"><RevenueRowDetails :details="personalDetails(row)" :breakdown="row.classification_breakdown" :category-breakdown="row.category_breakdown" /></template>
+              <template #default="{ row }"><RevenueRowDetails :details="personalDetails(row)" :breakdown="row.classification_breakdown" :category-breakdown="row.category_breakdown" :country-breakdown="row.customer_country_breakdown" /></template>
             </el-table-column>
             <el-table-column prop="user_group" label="组别" width="70" />
             <el-table-column prop="real_name" label="姓名" min-width="120" />
@@ -79,7 +79,7 @@
         <el-tab-pane v-if="canViewLeaderSummary" label="组长汇总" name="leaders">
           <el-table :data="leaderSummary" stripe empty-text="暂无组长汇总" class="compact-revenue-table">
             <el-table-column type="expand" label="详情" width="62">
-              <template #default="{ row }"><RevenueRowDetails :details="leaderDetails(row)" :breakdown="row.classification_breakdown" :category-breakdown="row.category_breakdown" /></template>
+              <template #default="{ row }"><RevenueRowDetails :details="leaderDetails(row)" :breakdown="row.classification_breakdown" :category-breakdown="row.category_breakdown" :country-breakdown="row.customer_country_breakdown" /></template>
             </el-table-column>
             <el-table-column prop="user_group" label="组别" width="70" />
             <el-table-column prop="leader_name" label="组长" min-width="120" />
@@ -93,7 +93,7 @@
         <el-tab-pane label="月度转化" name="monthly">
           <el-table :data="monthlyConversion" stripe max-height="390" empty-text="暂无月度数据" class="compact-revenue-table">
             <el-table-column type="expand" label="详情" width="62">
-              <template #default="{ row }"><RevenueRowDetails :details="monthlyDetails(row)" :breakdown="row.classification_breakdown" :category-breakdown="row.category_breakdown" /></template>
+              <template #default="{ row }"><RevenueRowDetails :details="monthlyDetails(row)" :breakdown="row.classification_breakdown" :category-breakdown="row.category_breakdown" :country-breakdown="row.customer_country_breakdown" /></template>
             </el-table-column>
             <el-table-column prop="site_month" label="申请月份" width="105" />
             <el-table-column prop="user_group" label="组别" width="70" />

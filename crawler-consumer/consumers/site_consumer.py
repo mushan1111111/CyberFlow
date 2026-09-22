@@ -257,11 +257,15 @@ class SiteConsumer(BaseConsumer):
             async with conn.cursor() as cur:
                 for domain, r in normalized.items():
                     await cur.execute(
-                        """INSERT INTO site_info (username, builder_username, site_domain, server_name, server_ip, admin_name, user_group,
+                        """INSERT INTO site_info (username, builder_username, site_domain, login_url, wp_admin_user,
+                           wp_admin_user_pwd, server_name, server_ip, admin_name, user_group,
                            theme_name, product_category, cat_names, site_tag, last_submitted_at, domain_applied_at, created_at)
-                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                            ON DUPLICATE KEY UPDATE
                              builder_username=COALESCE(NULLIF(VALUES(builder_username), ''), builder_username),
+                             login_url=COALESCE(NULLIF(VALUES(login_url), ''), login_url),
+                             wp_admin_user=COALESCE(NULLIF(VALUES(wp_admin_user), ''), wp_admin_user),
+                             wp_admin_user_pwd=COALESCE(NULLIF(VALUES(wp_admin_user_pwd), ''), wp_admin_user_pwd),
                              server_name=COALESCE(NULLIF(VALUES(server_name), ''), server_name),
                              server_ip=COALESCE(NULLIF(VALUES(server_ip), ''), server_ip),
                              admin_name=COALESCE(NULLIF(VALUES(admin_name), ''), admin_name),
@@ -277,7 +281,9 @@ class SiteConsumer(BaseConsumer):
                              last_submitted_at=COALESCE(VALUES(last_submitted_at), last_submitted_at),
                              domain_applied_at=COALESCE(VALUES(domain_applied_at), domain_applied_at),
                              created_at=COALESCE(VALUES(created_at), created_at)""",
-                        (r.get("username"), r.get("builder_username"), domain, r.get("server_name"),
+                        (r.get("username"), r.get("builder_username"), domain,
+                         r.get("login_url"), r.get("wp_admin_user"), r.get("wp_admin_user_pwd"),
+                         r.get("server_name"),
                          r.get("server_ip"), r.get("admin_name"),
                          r.get("user_group"), r.get("theme_name"), r.get("product_category"),
                          _json_array(r.get("cat_names")), r.get("site_tag", 0),
@@ -537,11 +543,15 @@ class SiteConsumer(BaseConsumer):
                 await self._prepare_active_domain_table(cur, normalized.keys())
                 for domain, r in normalized.items():
                     await cur.execute(
-                        """INSERT INTO site_info (username, builder_username, site_domain, server_name, server_ip, admin_name, user_group,
-                           theme_name, product_category, cat_names, site_tag, last_submitted_at, domain_applied_at, created_at)
-                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """INSERT INTO site_info (username, builder_username, site_domain, login_url, wp_admin_user,
+                           wp_admin_user_pwd, server_name, server_ip, admin_name, user_group, theme_name,
+                           product_category, cat_names, site_tag, last_submitted_at, domain_applied_at, created_at)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                            ON DUPLICATE KEY UPDATE
                              builder_username=COALESCE(NULLIF(VALUES(builder_username), ''), builder_username),
+                             login_url=VALUES(login_url),
+                             wp_admin_user=VALUES(wp_admin_user),
+                             wp_admin_user_pwd=VALUES(wp_admin_user_pwd),
                              server_name=COALESCE(NULLIF(VALUES(server_name), ''), server_name),
                              server_ip=COALESCE(NULLIF(VALUES(server_ip), ''), server_ip),
                              admin_name=VALUES(admin_name),
@@ -553,7 +563,8 @@ class SiteConsumer(BaseConsumer):
                              last_submitted_at=COALESCE(VALUES(last_submitted_at), last_submitted_at),
                              domain_applied_at=COALESCE(VALUES(domain_applied_at), domain_applied_at),
                              created_at=COALESCE(VALUES(created_at), created_at)""",
-                        (r["username"], r.get("builder_username"), domain, r.get("server_name"),
+                        (r["username"], r.get("builder_username"), domain, r.get("login_url"),
+                         r.get("wp_admin_user"), r.get("wp_admin_user_pwd"), r.get("server_name"),
                          r.get("server_ip"), r.get("admin_name"),
                          r.get("user_group"), r.get("theme_name"), r.get("product_category"),
                          _json_array(r.get("cat_names")), r.get("site_tag", 0),

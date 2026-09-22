@@ -2,13 +2,13 @@ package com.cyberflow.admin.common;
 
 import com.cyberflow.admin.system.entity.SysOperationLog;
 import com.cyberflow.admin.system.service.SysOperationLogService;
+import com.cyberflow.admin.system.mapper.SysUserMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -16,7 +16,6 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.LocalDateTime;
-import java.util.Objects;
 
 /**
  * 操作日志 AOP 切面。
@@ -37,6 +36,7 @@ public class OperationLogAspect {
 
     /** 操作日志服务，用于持久化日志记录 */
     private final SysOperationLogService logService;
+    private final SysUserMapper userMapper;
 
     /**
      * 环绕通知：拦截所有 RestController 的公开方法，记录操作日志。
@@ -70,13 +70,16 @@ public class OperationLogAspect {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())) {
                 logEntry.setUsername(auth.getName());
+                var user = userMapper.selectByUsername(auth.getName());
+                if (user != null) logEntry.setUserId(user.getId());
             }
 
             // 推断操作类型
             String method = logEntry.getRequestMethod();
             String url = logEntry.getRequestUrl() != null ? logEntry.getRequestUrl() : "";
-            logEntry.setOperation(inferOperation(method));
+            logEntry.setOperation(inferOperation(method, url));
             logEntry.setModule(inferModule(url));
+            logEntry.setTarget(inferTarget(url));
 
             Object result = joinPoint.proceed();
 
@@ -103,15 +106,10 @@ public class OperationLogAspect {
      *
      * @param logEntry 待保存的操作日志实体
      */
-    @Async
     void saveLog(SysOperationLog logEntry) {
-        try {
-            // 只记录 CUD 操作
-            if (!"GET".equalsIgnoreCase(logEntry.getRequestMethod())) {
-                logService.save(logEntry);
-            }
-        } catch (Exception e) {
-            log.warn("Operation log save failed: {}", e.getMessage());
+        // 只记录 CUD 操作；异步入口位于独立的 Spring Bean，确保代理生效。
+        if (!"GET".equalsIgnoreCase(logEntry.getRequestMethod())) {
+            logService.saveAsync(logEntry);
         }
     }
 
@@ -121,7 +119,13 @@ public class OperationLogAspect {
      * @param method HTTP 方法（GET/POST/PUT/DELETE）
      * @return 对应的操作类型：CREATE / UPDATE / DELETE / QUERY
      */
-    private String inferOperation(String method) {
+    private String inferOperation(String method, String url) {
+        if (url.contains("/system/notification/") && url.endsWith("/test")) {
+            return "TEST_NOTIFICATION";
+        }
+        if (url.contains("/crawler/") && (url.endsWith("/start") || url.endsWith("/trigger"))) {
+            return "TRIGGER_CRAWLER";
+        }
         return switch (method.toUpperCase()) {
             case "POST" -> "CREATE";
             case "PUT" -> "UPDATE";
@@ -138,9 +142,25 @@ public class OperationLogAspect {
      */
     private String inferModule(String url) {
         if (url.contains("/system/")) return "SYSTEM";
+        if (url.contains("/auth/")) return "AUTH";
         if (url.contains("/crawler/")) return "CRAWLER";
         if (url.contains("/dashboard/")) return "DASHBOARD";
+        if (url.contains("/new-site")) return "NEW_SITE";
+        if (url.contains("/categories")) return "CATEGORY";
         return "UNKNOWN";
+    }
+
+    private String inferTarget(String url) {
+        if (url.contains("/system/notification")) return "通知配置";
+        if (url.contains("/system/user")) return "用户管理";
+        if (url.contains("/system/role")) return "角色管理";
+        if (url.contains("/system/menu")) return "菜单管理";
+        if (url.contains("/crawler/")) return "数据同步";
+        if (url.contains("/dashboard/")) return "数据看板";
+        if (url.contains("/new-site")) return "新站点管理";
+        if (url.contains("/categories")) return "自定义分类";
+        if (url.contains("/auth/")) return "用户认证";
+        return "其他操作";
     }
 
     /**

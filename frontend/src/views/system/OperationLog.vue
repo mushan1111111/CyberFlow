@@ -17,6 +17,9 @@
           <el-option label="系统管理" value="SYSTEM" />
           <el-option label="爬虫管理" value="CRAWLER" />
           <el-option label="数据看板" value="DASHBOARD" />
+          <el-option label="用户认证" value="AUTH" />
+          <el-option label="新站点管理" value="NEW_SITE" />
+          <el-option label="自定义分类" value="CATEGORY" />
         </el-select>
       </el-form-item>
       <el-form-item>

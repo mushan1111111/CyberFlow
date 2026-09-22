@@ -51,6 +51,8 @@ Mock.mock(/\/admin\/dashboard\/site-groups/, 'get', dashboardData.siteGroups)
 Mock.mock(/\/admin\/dashboard\/charts/, 'get', dashboardData.charts)
 /** 拦截 GET /admin/dashboard/sites - 站点分页列表 */
 Mock.mock(/\/admin\/dashboard\/sites(\?|$)/, 'get', (options) => dashboardData.sites(paramParser(options.url)))
+/** 拦截 DELETE /admin/dashboard/sites/clear - 管理员清空站点与收录历史 */
+Mock.mock(/\/admin\/dashboard\/sites\/clear(\?|$)/, 'delete', dashboardData.clearAllSites)
 /** 拦截 GET /admin/dashboard/site-index-history - 站点收录历史 */
 Mock.mock(/\/admin\/dashboard\/site-index-history(\?|$)/, 'get', (options) => dashboardData.siteIndexHistory(paramParser(options.url)))
 /** 拦截 GET /admin/dashboard/orders-by-domain - 按域名查询订单 */
@@ -147,3 +149,16 @@ Mock.mock(/\/admin\/system\/menu\/tree/, 'get', systemData.menuTree)
 // ========== System: Log 操作日志 ==========
 /** 拦截 GET /admin/system/log - 操作日志分页列表 */
 Mock.mock(/\/admin\/system\/log(\?|$)/, 'get', (options) => systemData.logList(paramParser(options.url)))
+
+// ========== System: Notification 通知配置 ==========
+Mock.mock(/\/admin\/system\/notification$/, 'get', systemData.notificationList)
+Mock.mock(/\/admin\/system\/notification$/, 'post', options => systemData.notificationCreate(JSON.parse(options.body || '{}')))
+Mock.mock(/\/admin\/system\/notification\/\d+$/, 'put', options => {
+  const id = options.url.match(/\/notification\/(\d+)/)[1]
+  return systemData.notificationUpdate(id, JSON.parse(options.body || '{}'))
+})
+Mock.mock(/\/admin\/system\/notification\/\d+$/, 'delete', options => {
+  const id = options.url.match(/\/notification\/(\d+)/)[1]
+  return systemData.notificationDelete(id)
+})
+Mock.mock(/\/admin\/system\/notification\/\d+\/test$/, 'post', { code: 200, msg: 'success', data: null })
