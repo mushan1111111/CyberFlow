@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -52,15 +53,19 @@ public class TaskMessagePublisher {
      * @param lastUpdatedAt 增量爬取起始时间（上次更新时间的 ISO 字符串）
      * @return 生成的任务唯一标识（UUID）
      */
-    public String publishSiteCrawl(Map<String, Object> platform, Map<String, Object> strategy, String lastUpdatedAt, String trigger) {
-        return publishSiteCrawl(createTaskId(), platform, strategy, lastUpdatedAt, trigger);
+    public String publishSiteCrawl(Map<String, Object> platform, Map<String, Object> strategy,
+                                   Map<String, List<String>> userMergeMap,
+                                   String lastUpdatedAt, String trigger) {
+        return publishSiteCrawl(createTaskId(), platform, strategy, userMergeMap, lastUpdatedAt, trigger);
     }
 
     public String publishSiteCrawl(String taskId, Map<String, Object> platform, Map<String, Object> strategy,
+                                   Map<String, List<String>> userMergeMap,
                                    String lastUpdatedAt, String trigger) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("platform", platform);
         payload.put("strategy", strategy);
+        payload.put("user_merge_map", userMergeMap);
         payload.put("cursor", Map.of("last_updated_at", lastUpdatedAt));
         Map<String, Object> message = Map.of(
             "task_id", taskId,

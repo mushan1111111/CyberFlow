@@ -83,7 +83,8 @@ public class SiteCrawlJob implements Job {
         taskHistoryService.save(history);
         try {
             publisher.publishSiteCrawl(taskId, crawlerConfigService.getAdminPlatform(),
-                    crawlerConfigService.getSiteStrategy(), lastUpdatedAt, "cron");
+                    crawlerConfigService.getSiteStrategy(), crawlerConfigService.getUserMergeMap(),
+                    lastUpdatedAt, "cron");
         } catch (RuntimeException ex) {
             taskHistoryService.markDispatchFailed(taskId, ex.getMessage());
             throw ex;

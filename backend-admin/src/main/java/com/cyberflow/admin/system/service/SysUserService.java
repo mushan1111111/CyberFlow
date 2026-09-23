@@ -3,6 +3,7 @@ package com.cyberflow.admin.system.service;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cyberflow.admin.system.entity.SysUser;
 import com.cyberflow.admin.system.entity.SysUserRole;
+import com.cyberflow.admin.common.SharedDataFields;
 import com.cyberflow.admin.system.mapper.SysRoleMapper;
 import com.cyberflow.admin.system.mapper.SysUserMapper;
 import com.cyberflow.admin.system.mapper.SysUserRoleMapper;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.LinkedHashSet;
 import java.util.Objects;
+import java.util.Arrays;
 
 /**
  * 系统用户业务服务。
@@ -212,9 +214,9 @@ public class SysUserService extends ServiceImpl<SysUserMapper, SysUser> implemen
         if (user.getNickname() != null && user.getNickname().length() > 50) {
             throw new IllegalArgumentException("昵称不能超过 50 个字符");
         }
-        if (user.getDataOwner() != null && user.getDataOwner().length() > 1000) {
-            throw new IllegalArgumentException("数据归属内容过长");
-        }
+        user.setDataOwner(normalizeSingleOwner(user.getDataOwner()));
+        user.setSharedDataOwners(normalizeSharedOwners(user.getSharedDataOwners(), user.getDataOwner()));
+        user.setSharedDataFields(normalizeSharedFields(user.getSharedDataFields()));
         if (user.getEmail() != null && !user.getEmail().isBlank()
                 && (!user.getEmail().contains("@") || user.getEmail().length() > 100)) {
             throw new IllegalArgumentException("邮箱格式不正确");
@@ -229,5 +231,36 @@ public class SysUserService extends ServiceImpl<SysUserMapper, SysUser> implemen
         if (password == null || password.length() < 8 || password.length() > 72) {
             throw new IllegalArgumentException("密码长度须为 8–72 个字符");
         }
+    }
+
+    private static String normalizeSingleOwner(String value) {
+        String owner = value == null ? "" : value.trim();
+        if (owner.length() > 100 || owner.matches(".*[,，、\\n].*")) {
+            throw new IllegalArgumentException("本人数据归属必须是一个管理员名称");
+        }
+        return owner;
+    }
+
+    private static String normalizeSharedOwners(String value, String ownOwner) {
+        if (value == null || value.isBlank()) return "";
+        var owners = Arrays.stream(value.split("[,，、\\n]"))
+                .map(String::trim)
+                .filter(owner -> !owner.isBlank() && !owner.equals(ownOwner))
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        String normalized = String.join(",", owners);
+        if (normalized.length() > 1000) throw new IllegalArgumentException("可查看成员内容过长");
+        return normalized;
+    }
+
+    private static String normalizeSharedFields(String value) {
+        if (value == null || value.isBlank()) return "";
+        var fields = Arrays.stream(value.split(","))
+                .map(String::trim)
+                .filter(field -> !field.isBlank())
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        if (!SharedDataFields.all().containsAll(fields)) {
+            throw new IllegalArgumentException("存在未知的他人数据字段权限");
+        }
+        return String.join(",", fields);
     }
 }

@@ -78,6 +78,32 @@ class SysUserServiceTest {
         verify(userRoleMapper, never()).deleteByUserId(any());
     }
 
+    @Test
+    void sharedOwnersAndFieldsAreNormalizedBeforeSaving() {
+        SysUser user = user(11L, "member", 1);
+        user.setPassword("password123");
+        user.setDataOwner(" A-本人 ");
+        user.setSharedDataOwners("A-本人、A-成员,A-成员");
+        user.setSharedDataFields("order.amount,performance.site_count,order.amount");
+        doReturn(null).when(service).getByUsername("member");
+        doReturn(true).when(service).save(user);
+
+        service.createUser(user);
+
+        assertEquals("A-本人", user.getDataOwner());
+        assertEquals("A-成员", user.getSharedDataOwners());
+        assertEquals("order.amount,performance.site_count", user.getSharedDataFields());
+    }
+
+    @Test
+    void unknownSharedFieldIsRejected() {
+        SysUser user = user(12L, "member", 1);
+        user.setPassword("password123");
+        user.setSharedDataFields("order.not_a_field");
+
+        assertThrows(IllegalArgumentException.class, () -> service.createUser(user));
+    }
+
     private SysUser user(Long id, String username, int status) {
         SysUser user = new SysUser();
         user.setId(id);

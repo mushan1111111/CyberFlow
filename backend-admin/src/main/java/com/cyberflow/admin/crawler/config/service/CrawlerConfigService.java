@@ -24,6 +24,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -123,13 +125,19 @@ public class CrawlerConfigService {
     @Transactional
     public Map<String, Object> updateRevenueConfig(Map<String, Object> body) {
         Set<String> allowed = Set.of(
-            "exchangeRate", "rateFactor", "leaderConfig", "teacherMap", "userMergeMap"
+            "exchangeRate", "rateFactor", "leaderConfig", "teacherMap", "userMergeMap",
+            "departedEmployees"
         );
         for (Map.Entry<String, Object> entry : body.entrySet()) {
             if (!allowed.contains(entry.getKey())) continue;
             if (MASK.equals(entry.getValue())) continue;
-            validateRevenueValue(entry.getKey(), entry.getValue());
-            upsertRuntime("revenue", entry.getKey(), entry.getValue(), false);
+            Object value = switch (entry.getKey()) {
+                case "userMergeMap" -> normalizeUserMergeMap(entry.getValue());
+                case "departedEmployees" -> normalizeDepartedEmployees(entry.getValue());
+                default -> entry.getValue();
+            };
+            validateRevenueValue(entry.getKey(), value);
+            upsertRuntime("revenue", entry.getKey(), value, false);
         }
         return getRevenueConfig();
     }
@@ -191,6 +199,71 @@ public class CrawlerConfigService {
         revenue.remove("leaderCommissionRate");
         revenue.remove("commissionTiers");
         return revenue;
+    }
+
+    public Map<String, List<String>> getUserMergeMap() {
+        return normalizeUserMergeMap(getRevenueConfig().getOrDefault("userMergeMap", Map.of()));
+    }
+
+    static Map<String, List<String>> normalizeUserMergeMap(Object value) {
+        if (!(value instanceof Map<?, ?> rawMap)) {
+            throw new IllegalArgumentException("userMergeMap 必须是对象");
+        }
+        Map<String, List<String>> result = new LinkedHashMap<>();
+        Set<String> aliases = new HashSet<>();
+        for (Map.Entry<?, ?> entry : rawMap.entrySet()) {
+            if (!(entry.getKey() instanceof String)) {
+                throw new IllegalArgumentException("多账号合并的主账号必须是字符串");
+            }
+            String primary = String.valueOf(entry.getKey()).trim();
+            if (primary.isEmpty() || result.containsKey(primary)) {
+                throw new IllegalArgumentException("多账号合并的主账号不能为空或重复");
+            }
+            if (!(entry.getValue() instanceof Collection<?> rawAliases) || rawAliases.isEmpty()) {
+                throw new IllegalArgumentException("主账号 " + primary + " 必须配置待合并账号");
+            }
+            if (rawAliases.stream().anyMatch(alias -> !(alias instanceof String))) {
+                throw new IllegalArgumentException("主账号 " + primary + " 的待合并账号必须是字符串");
+            }
+            List<String> normalizedAliases = rawAliases.stream()
+                    .map(alias -> ((String) alias).trim())
+                    .filter(alias -> !alias.isEmpty())
+                    .distinct()
+                    .toList();
+            if (normalizedAliases.size() != rawAliases.size() || normalizedAliases.contains(primary)) {
+                throw new IllegalArgumentException("主账号 " + primary + " 的待合并账号不能为空、重复或等于主账号");
+            }
+            for (String alias : normalizedAliases) {
+                if (!aliases.add(alias)) {
+                    throw new IllegalArgumentException("待合并账号不能归属于多个主账号: " + alias);
+                }
+            }
+            result.put(primary, normalizedAliases);
+        }
+        for (String primary : result.keySet()) {
+            if (aliases.contains(primary)) {
+                throw new IllegalArgumentException("主账号不能同时作为其他主账号的待合并账号: " + primary);
+            }
+        }
+        return result;
+    }
+
+    static List<String> normalizeDepartedEmployees(Object value) {
+        if (!(value instanceof Collection<?> rawEmployees)) {
+            throw new IllegalArgumentException("departedEmployees 必须是数组");
+        }
+        if (rawEmployees.stream().anyMatch(employee -> !(employee instanceof String))) {
+            throw new IllegalArgumentException("离职员工账号必须是字符串");
+        }
+        List<String> employees = rawEmployees.stream()
+                .map(employee -> ((String) employee).trim())
+                .filter(employee -> !employee.isEmpty())
+                .distinct()
+                .toList();
+        if (employees.size() != rawEmployees.size()) {
+            throw new IllegalArgumentException("离职员工账号不能为空或重复");
+        }
+        return employees;
     }
 
     /** AI generation settings used by the new-site module. */
@@ -437,7 +510,8 @@ public class CrawlerConfigService {
                 "B-吴靖涛", "-wjt",
                 "B-王华炜", "-whw"
             )),
-            "userMergeMap", new LinkedHashMap<>()
+            "userMergeMap", new LinkedHashMap<>(),
+            "departedEmployees", new ArrayList<>()
         )));
         return root;
     }

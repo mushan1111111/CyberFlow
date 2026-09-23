@@ -83,19 +83,28 @@ public interface RevenueMapper {
                                                       @Param("startDate") String startDate,
                                                       @Param("endDate") String endDate);
 
-    @Select({"<script>", "SELECT admin_name, user_group, COUNT(*) AS site_count, SUM(site_tag = 1) AS batch_site_count",
-            "FROM site_info WHERE TRIM(COALESCE(admin_name, '')) &lt;&gt; ''",
-            "AND TRIM(COALESCE(user_group, '')) &lt;&gt; '' AND (#{userGroup} IS NULL OR user_group = #{userGroup})",
-            "AND (#{ownerName} IS NULL OR FIND_IN_SET(admin_name, #{ownerName}) &gt; 0 " +
+    @Select({"<script>",
+            "SELECT s.admin_name, s.user_group, COUNT(*) AS site_count, SUM(s.site_tag = 1) AS batch_site_count,",
+            "COUNT(valid_sites.product_host) AS valid_ordered_site_count",
+            "FROM site_info s LEFT JOIN (",
+            "SELECT DISTINCT " + OrderMapper.NORMALIZED_PRODUCT_HOST_SQL + " AS product_host FROM orders",
+            "WHERE is_valid = 0 AND TRIM(COALESCE(product_host, '')) &lt;&gt; ''",
+            "<if test='startDate != null and startDate != &quot;&quot;'> AND create_time &gt;= CONCAT(#{startDate}, ' 00:00:00')</if>",
+            "<if test='endDate != null and endDate != &quot;&quot;'> AND create_time &lt; DATE_ADD(#{endDate}, INTERVAL 1 DAY)</if>",
+            ") valid_sites ON LOWER(CASE WHEN LEFT(TRIM(s.site_domain), 4) = 'www.'",
+            "THEN SUBSTRING(TRIM(s.site_domain), 5) ELSE TRIM(s.site_domain) END) = valid_sites.product_host",
+            "WHERE TRIM(COALESCE(s.admin_name, '')) &lt;&gt; ''",
+            "AND TRIM(COALESCE(s.user_group, '')) &lt;&gt; '' AND (#{userGroup} IS NULL OR s.user_group = #{userGroup})",
+            "AND (#{ownerName} IS NULL OR FIND_IN_SET(s.admin_name, #{ownerName}) &gt; 0 " +
             "<if test='teacherSuffixes != null and !teacherSuffixes.isEmpty()'> OR " +
-            "<foreach collection='teacherSuffixes' item='suffix' separator=' OR '>admin_name LIKE CONCAT('%', #{suffix})</foreach>" +
+            "<foreach collection='teacherSuffixes' item='suffix' separator=' OR '>s.admin_name LIKE CONCAT('%', #{suffix})</foreach>" +
             "</if>)",
-            "AND COALESCE(domain_applied_at, created_at) &lt; CONCAT(#{siteCreatedBefore}, ' 00:00:00')",
-            "GROUP BY admin_name, user_group", "</script>"})
+            "GROUP BY s.admin_name, s.user_group", "</script>"})
     List<Map<String, Object>> adminSiteStats(@Param("userGroup") String userGroup,
                                               @Param("ownerName") String ownerName,
                                               @Param("teacherSuffixes") List<String> teacherSuffixes,
-                                              @Param("siteCreatedBefore") String siteCreatedBefore);
+                                              @Param("startDate") String startDate,
+                                              @Param("endDate") String endDate);
 
     @Select({"<script>",
             "SELECT filtered_orders.admin_name, filtered_orders.user_group,",

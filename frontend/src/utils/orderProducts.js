@@ -74,11 +74,14 @@ function normalizeProduct(product, index) {
 }
 
 /** 保留每个商品的所有字段，并汇总全部商品图片供列表和预览使用。 */
-export function normalizeOrder(order) {
+export function normalizeOrder(order, index = 0) {
   const productInfo = parseProductInfo(order.productInfo ?? order.product_info).map(normalizeProduct)
+  const orderKey = order.user_group && order.id !== undefined && order.id !== null
+    ? `${order.user_group}-${order.id}`
+    : `restricted-${index}`
   return {
     ...order,
-    orderKey: `${order.user_group || ''}-${order.id}`,
+    orderKey,
     productInfo,
     productImages: productInfo.flatMap(product => product.images),
   }

@@ -136,7 +136,7 @@
         <template #default="{ row }">{{ formatSiteCategories(row.cat_names, row.product_category) }}</template>
       </el-table-column>
       <el-table-column label="建站类型" width="100" align="center">
-        <template #default="{ row }"><el-tag :type="siteTagType(row.site_tag)">{{ siteTagLabel(row.site_tag) }}</el-tag></template>
+        <template #default="{ row }"><el-tag v-if="row.site_tag !== undefined && row.site_tag !== null" :type="siteTagType(row.site_tag)">{{ siteTagLabel(row.site_tag) }}</el-tag><span v-else>—</span></template>
       </el-table-column>
       <el-table-column prop="pay_status_text" label="支付状态" width="90" />
       <el-table-column prop="customer_ip_country" label="国家" width="70" />

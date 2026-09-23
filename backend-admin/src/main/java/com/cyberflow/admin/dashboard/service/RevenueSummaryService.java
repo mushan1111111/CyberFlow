@@ -2,6 +2,7 @@ package com.cyberflow.admin.dashboard.service;
 
 import com.cyberflow.admin.crawler.config.service.CrawlerConfigService;
 import com.cyberflow.admin.common.DataScopeService;
+import com.cyberflow.admin.common.SharedDataFields;
 import com.cyberflow.admin.dashboard.mapper.RevenueMapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -13,6 +14,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.YearMonth;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 /** Implements the accounting rules from monthly_revenue_conversion.py on live data. */
@@ -44,29 +46,30 @@ public class RevenueSummaryService {
                                          String siteCreatedMonth) {
         String userGroup = normalizeGroup(rawUserGroup);
         var scope = dataScopeService.current();
-        String ownerName = scope.administrator() ? null : scope.ownerName();
+        String ownerName = scope.ownerFilterFor("performance.");
         LocalDate today = LocalDate.now(BUSINESS_ZONE);
         String effectiveStart = startDate == null || startDate.isBlank()
                 ? today.withDayOfMonth(1).toString() : startDate;
         String effectiveEnd = endDate == null || endDate.isBlank()
                 ? today.toString() : endDate;
-        String siteCreatedBefore = today.withDayOfMonth(1).toString();
         String effectiveSiteCreatedMonth = normalizeMonth(siteCreatedMonth, today);
+        long periodDays = ChronoUnit.DAYS.between(
+                LocalDate.parse(effectiveStart), LocalDate.parse(effectiveEnd)) + 1;
+        if (periodDays <= 0) throw new IllegalArgumentException("结束日期不能早于开始日期");
         Map<String, Object> config = configService.getRevenueConfig();
-        Map<String, List<String>> mergeMap = stringListMap(config.get("userMergeMap"));
         Map<String, String> teacherMap = stringMap(config.get("teacherMap"));
         Map<String, String> leaderMap = stringMap(config.get("leaderConfig"));
+        Set<String> departedEmployees = stringSet(config.get("departedEmployees"));
         List<String> teacherSuffixes = scope.administrator()
                 ? List.of()
-                : teacherSuffixes(scope.ownerNames(), teacherMap, mergeMap);
+                : teacherSuffixes(scope.ownerNamesFor("performance."), teacherMap);
 
         Map<String, AccountStats> accounts = loadAccounts(
-                userGroup, ownerName, teacherSuffixes, effectiveStart, effectiveEnd, siteCreatedBefore);
+                userGroup, ownerName, teacherSuffixes, effectiveStart, effectiveEnd);
 
         Map<String, PersonStats> people = new LinkedHashMap<>();
         for (AccountStats account : accounts.values()) {
-            String realName = realName(account.adminName, mergeMap);
-            PersonStats person = people.computeIfAbsent(realName, PersonStats::new);
+            PersonStats person = people.computeIfAbsent(account.adminName, PersonStats::new);
             person.groups.add(account.group);
             person.accounts.add(account.adminName);
             person.totalOrders += account.totalOrders;
@@ -77,6 +80,7 @@ public class RevenueSummaryService {
             person.copyOrders += account.copyOrders;
             person.siteCount += account.siteCount;
             person.batchSiteCount += account.batchSiteCount;
+            person.validOrderedSiteCount += account.validOrderedSiteCount;
             mergeCounts(person.categoryOrders, account.categoryOrders);
             mergeCounts(person.countryOrders, account.countryOrders);
             person.originalAmount = person.originalAmount.add(account.originalAmount);
@@ -90,8 +94,8 @@ public class RevenueSummaryService {
         // does. Create the mentor bucket from ownership so the intern amount
         // can still be synchronized into the mentor's commission.
         if (!scope.administrator()) {
-            for (String owner : scope.ownerNames()) {
-                PersonStats mentor = people.computeIfAbsent(realName(owner, mergeMap), PersonStats::new);
+            for (String owner : scope.ownerNamesFor("performance.")) {
+                PersonStats mentor = people.computeIfAbsent(owner, PersonStats::new);
                 mentor.commissionEligible = true;
             }
         }
@@ -101,7 +105,6 @@ public class RevenueSummaryService {
             for (Map.Entry<String, String> rule : teacherMap.entrySet()) {
                 if (hasSuffix(account.adminName, rule.getValue())) {
                     PersonStats mentor = people.get(rule.getKey());
-                    if (mentor == null) mentor = people.get(realName(rule.getKey(), mergeMap));
                     if (mentor != null) {
                         mentor.syncedAmount = mentor.syncedAmount.add(account.originalAmount);
                         mentor.syncedBatchSiteAmount = mentor.syncedBatchSiteAmount.add(account.batchSiteAmount);
@@ -141,7 +144,11 @@ public class RevenueSummaryService {
             item.put("batch_site_commission_rate", batchCommissionRate);
             item.put("regular_commission_rmb", person.commissionEligible ? money(regularCommission) : null);
             item.put("batch_site_commission_rmb", person.commissionEligible ? money(batchCommission) : null);
-            item.put("conversion_rate", percent(person.totalOrders, person.siteCount));
+            item.put("valid_ordered_site_count", person.validOrderedSiteCount);
+            item.put("order_conversion_rate", percent(person.validOrders, person.siteCount));
+            item.put("site_conversion_rate", percent(person.validOrderedSiteCount, person.siteCount));
+            item.put("hundred_site_conversion_rate",
+                    hundredSiteConversionRate(person.validOrders, person.siteCount, periodDays));
             item.put("commission_rmb", person.commissionEligible ? money(totalCommission) : null);
             item.put("total_member_commission_rmb", person.commissionEligible ? money(totalCommission) : null);
             item.put("classification_breakdown", classificationBreakdown(
@@ -151,22 +158,27 @@ public class RevenueSummaryService {
             if (person.commissionEligible) personalCommissionByName.put(person.realName, money(totalCommission));
             personal.add(item);
         }
-        sortByDeduplicatedOrders(personal);
+        Set<Map<String, Object>> departedRows = Collections.newSetFromMap(new IdentityHashMap<>());
+        personal.stream()
+                .filter(row -> departedEmployees.contains(text(row, "real_name").trim()))
+                .forEach(departedRows::add);
+        if (!scope.administrator()) {
+            personal.forEach(row -> {
+                if (!isOwnPerformanceAccount(text(row, "real_name"), scope.ownerName(), teacherMap)) {
+                    SharedDataFields.retainPerformanceFields(row, scope);
+                }
+            });
+        }
         BigDecimal totalMemberCommission = personal.stream()
                 .map(row -> number(row.get("total_member_commission_rmb")))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        personal.removeIf(departedRows::contains);
+        sortByDeduplicatedOrders(personal);
 
-        // Personal data remains owner-scoped, but a non-admin needs the
-        // aggregate for their whole group in order to see a meaningful leader
-        // summary. The group is derived from the scoped account data, so a
-        // user cannot request another group's leader totals.
         List<Map<String, Object>> leaders = new ArrayList<>();
-        if (scope.administrator() || scope.operator()) {
-            String visibleLeaderGroup = scope.administrator() ? null : resolveGroup(accounts);
-            Map<String, AccountStats> leaderAccounts = scope.administrator() || visibleLeaderGroup == null
-                    ? accounts
-                    : loadAccounts(visibleLeaderGroup, null, List.of(), effectiveStart, effectiveEnd, siteCreatedBefore);
-            String leaderTotalsGroup = scope.administrator() ? userGroup : visibleLeaderGroup;
+        if (scope.administrator()) {
+            Map<String, AccountStats> leaderAccounts = accounts;
+            String leaderTotalsGroup = userGroup;
             Map<String, Map<String, Object>> groupOrderTotals = new HashMap<>();
             for (Map<String, Object> row : revenueMapper.groupOrderStats(
                     leaderTotalsGroup, effectiveStart, effectiveEnd)) {
@@ -185,16 +197,17 @@ public class RevenueSummaryService {
                     .filter(group -> group != null && !group.isBlank()).forEach(currentGroups::add);
             for (String group : currentGroups) {
                 if (userGroup != null && !userGroup.equals(group)) continue;
-                if (visibleLeaderGroup != null && !visibleLeaderGroup.equals(group)) continue;
                 List<AccountStats> members = leaderAccounts.values().stream().filter(a -> group.equals(a.group)).toList();
                 Map<String, Object> groupTotals = groupOrderTotals.getOrDefault(group, Map.of());
                 BigDecimal originalAmount = number(groupTotals.get("original_amount"));
                 String leaderName = leaderMap.getOrDefault(group, group + "组组长");
                 BigDecimal leaderPersonalAmount = personalSuccessfulAmount(
-                        leaderName, members, mergeMap, teacherMap);
+                        leaderName, members, teacherMap);
                 BigDecimal commissionBaseAmount = originalAmount.subtract(leaderPersonalAmount).max(BigDecimal.ZERO);
                 long sites = members.stream().mapToLong(a -> a.siteCount).sum();
+                long validOrderedSites = members.stream().mapToLong(a -> a.validOrderedSiteCount).sum();
                 long orders = number(groupTotals.get("total_orders")).longValue();
+                long validOrders = number(groupTotals.get("valid_orders")).longValue();
                 BigDecimal leaderCommission = commissionBaseAmount
                         .multiply(decimal(config.get("exchangeRate"), "6.73"))
                         .multiply(decimal(config.get("rateFactor"), "0.42"))
@@ -204,14 +217,18 @@ public class RevenueSummaryService {
                 Map<String, Object> item = new LinkedHashMap<>();
                 item.put("user_group", group);
                 item.put("leader_name", leaderName);
-                item.put("member_count", members.stream().map(a -> realName(a.adminName, mergeMap)).distinct().count());
+                item.put("member_count", members.stream().map(a -> a.adminName).distinct().count());
                 item.put("site_count", sites);
                 item.put("deduplicated_orders", orders);
-                item.put("valid_deduplicated_orders", number(groupTotals.get("valid_orders")).longValue());
+                item.put("valid_deduplicated_orders", validOrders);
+                item.put("valid_ordered_site_count", validOrderedSites);
                 item.put("original_amount", money(originalAmount));
                 item.put("leader_personal_amount", money(leaderPersonalAmount));
                 item.put("commission_base_amount", money(commissionBaseAmount));
-                item.put("conversion_rate", percent(orders, sites));
+                item.put("order_conversion_rate", percent(validOrders, sites));
+                item.put("site_conversion_rate", percent(validOrderedSites, sites));
+                item.put("hundred_site_conversion_rate",
+                        hundredSiteConversionRate(validOrders, sites, periodDays));
                 item.put("leader_commission_rmb", money(leaderCommission));
                 item.put("leader_personal_commission_rmb", money(leaderPersonalCommission));
                 item.put("leader_total_commission_rmb", money(leaderTotalCommission));
@@ -280,7 +297,7 @@ public class RevenueSummaryService {
             item.put("site_month", stats.month);
             item.put("user_group", stats.group);
             item.put("admin_name", stats.adminName);
-            item.put("real_name", realName(stats.adminName, mergeMap));
+            item.put("real_name", stats.adminName);
             item.put("site_count", stats.siteCount);
             item.put("total_orders", stats.totalOrders);
             item.put("deduplicated_orders", stats.totalOrders);
@@ -298,6 +315,13 @@ public class RevenueSummaryService {
             item.put("customer_country_breakdown", countryBreakdown(stats.countryOrders));
             monthly.add(item);
         }
+        if (!scope.administrator()) {
+            monthly.forEach(row -> {
+                if (!isOwnPerformanceAccount(text(row, "real_name"), scope.ownerName(), teacherMap)) {
+                    SharedDataFields.retainPerformanceFields(row, scope);
+                }
+            });
+        }
         sortByDeduplicatedOrders(monthly);
 
         Map<String, Object> result = new LinkedHashMap<>();
@@ -305,20 +329,21 @@ public class RevenueSummaryService {
         result.put("start_date", effectiveStart);
         result.put("end_date", effectiveEnd);
         result.put("site_created_month", effectiveSiteCreatedMonth);
-        result.put("site_created_before", siteCreatedBefore);
-        result.put("parameters", Map.of(
-                "exchange_rate", decimal(config.get("exchangeRate"), "6.73"),
-                "rate_factor", decimal(config.get("rateFactor"), "0.42"),
-                "leader_commission_rate", LEADER_COMMISSION_RATE,
-                "batch_site_commission_tiers", batchSiteCommissionTiers(),
-                "commission_tiers", regularCommissionTiers()
-        ));
+        Map<String, Object> parameters = new LinkedHashMap<>();
+        parameters.put("exchange_rate", decimal(config.get("exchangeRate"), "6.73"));
+        parameters.put("rate_factor", decimal(config.get("rateFactor"), "0.42"));
+        parameters.put("batch_site_commission_tiers", batchSiteCommissionTiers());
+        parameters.put("commission_tiers", regularCommissionTiers());
+        if (scope.administrator()) parameters.put("leader_commission_rate", LEADER_COMMISSION_RATE);
+        result.put("parameters", parameters);
         result.put("total_member_commission_rmb", money(totalMemberCommission));
-        result.put("total_leader_group_commission_rmb", money(totalLeaderGroupCommission));
-        result.put("total_leader_commission_rmb", money(totalLeaderCommission));
         result.put("personal_performance", personal);
-        result.put("leader_summary", leaders);
         result.put("monthly_conversion", monthly);
+        if (scope.administrator()) {
+            result.put("total_leader_group_commission_rmb", money(totalLeaderGroupCommission));
+            result.put("total_leader_commission_rmb", money(totalLeaderCommission));
+            result.put("leader_summary", leaders);
+        }
         return result;
     }
 
@@ -331,8 +356,7 @@ public class RevenueSummaryService {
 
     private Map<String, AccountStats> loadAccounts(String userGroup, String ownerName,
                                                     List<String> teacherSuffixes,
-                                                    String startDate, String endDate,
-                                                    String siteCreatedBefore) {
+                                                    String startDate, String endDate) {
         Map<String, AccountStats> accounts = new LinkedHashMap<>();
         for (Map<String, Object> row : revenueMapper.adminOrderStats(userGroup, ownerName, teacherSuffixes, startDate, endDate)) {
             AccountStats stats = accounts.computeIfAbsent(text(row, "admin_name"), AccountStats::new);
@@ -354,11 +378,12 @@ public class RevenueSummaryService {
                     number(row.get("order_count")).longValue(), Long::sum);
         }
         for (Map<String, Object> row : revenueMapper.adminSiteStats(
-                userGroup, ownerName, teacherSuffixes, siteCreatedBefore)) {
+                userGroup, ownerName, teacherSuffixes, startDate, endDate)) {
             AccountStats stats = accounts.computeIfAbsent(text(row, "admin_name"), AccountStats::new);
             stats.group = text(row, "user_group");
             stats.siteCount = number(row.get("site_count")).longValue();
             stats.batchSiteCount = number(row.get("batch_site_count")).longValue();
+            stats.validOrderedSiteCount = number(row.get("valid_ordered_site_count")).longValue();
         }
         for (Map<String, Object> row : revenueMapper.adminOrderCategoryStats(
                 userGroup, ownerName, teacherSuffixes, startDate, endDate)) {
@@ -371,11 +396,9 @@ public class RevenueSummaryService {
     }
 
     private static List<String> teacherSuffixes(List<String> owners,
-                                                Map<String, String> teacherMap,
-                                                Map<String, List<String>> mergeMap) {
+                                                Map<String, String> teacherMap) {
         return teacherMap.entrySet().stream()
-                .filter(entry -> owners.contains(entry.getKey())
-                        || owners.stream().anyMatch(owner -> realName(owner, mergeMap).equals(entry.getKey())))
+                .filter(entry -> owners.contains(entry.getKey()))
                 .map(Map.Entry::getValue)
                 .filter(value -> value != null && !value.isBlank())
                 .map(String::trim)
@@ -388,40 +411,37 @@ public class RevenueSummaryService {
                 .anyMatch(value -> hasSuffix(adminName, value));
     }
 
+    private static boolean isOwnPerformanceAccount(String adminName, String ownerName,
+                                                   Map<String, String> teacherMap) {
+        if (Objects.equals(adminName, ownerName)) return true;
+        String ownTeacherSuffix = teacherMap.get(ownerName);
+        return ownTeacherSuffix != null && hasSuffix(adminName, ownTeacherSuffix);
+    }
+
     private static boolean hasSuffix(String accountName, String suffix) {
         String account = Objects.toString(accountName, "").trim().toLowerCase(Locale.ROOT);
         String normalizedSuffix = Objects.toString(suffix, "").trim().toLowerCase(Locale.ROOT);
         return !account.isEmpty() && !normalizedSuffix.isEmpty() && account.endsWith(normalizedSuffix);
     }
 
-    private static String resolveGroup(Map<String, AccountStats> accounts) {
-        return accounts.values().stream()
-                .map(account -> account.group)
-                .filter(group -> group != null && !group.isBlank())
-                .distinct()
-                .findFirst()
-                .orElse(null);
-    }
-
     /**
      * Uses the same successful-amount definition as personal performance:
-     * the leader's own merged accounts plus paid amounts synchronized from
+     * the leader's canonical account plus paid amounts synchronized from
      * accounts matching the leader's mentor suffix.
      */
     private static BigDecimal personalSuccessfulAmount(String configuredLeaderName,
                                                         Collection<AccountStats> accounts,
-                                                        Map<String, List<String>> mergeMap,
                                                         Map<String, String> teacherMap) {
-        String leaderName = realName(configuredLeaderName, mergeMap);
+        String leaderName = configuredLeaderName;
         BigDecimal amount = accounts.stream()
-                .filter(account -> leaderName.equals(realName(account.adminName, mergeMap)))
+                .filter(account -> leaderName.equals(account.adminName))
                 .map(account -> account.originalAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         for (AccountStats account : accounts) {
             for (Map.Entry<String, String> rule : teacherMap.entrySet()) {
                 if (!hasSuffix(account.adminName, rule.getValue())) continue;
-                if (leaderName.equals(rule.getKey()) || leaderName.equals(realName(rule.getKey(), mergeMap))) {
+                if (leaderName.equals(rule.getKey())) {
                     amount = amount.add(account.originalAmount);
                 }
                 break;
@@ -546,26 +566,19 @@ public class RevenueSummaryService {
         return tag >= 0 && tag <= 2 ? tag : 0;
     }
 
-    private static String realName(String adminName, Map<String, List<String>> mergeMap) {
-        for (Map.Entry<String, List<String>> entry : mergeMap.entrySet()) {
-            if (entry.getValue().contains(adminName)) return entry.getKey();
-        }
-        return adminName;
-    }
-
     private static Map<String, String> stringMap(Object value) {
         Map<String, String> result = new LinkedHashMap<>();
         if (value instanceof Map<?, ?> map) map.forEach((k, v) -> result.put(String.valueOf(k), String.valueOf(v)));
         return result;
     }
 
-    private static Map<String, List<String>> stringListMap(Object value) {
-        Map<String, List<String>> result = new LinkedHashMap<>();
-        if (value instanceof Map<?, ?> map) {
-            map.forEach((k, v) -> {
-                if (v instanceof Collection<?> collection) result.put(String.valueOf(k), collection.stream().map(String::valueOf).toList());
-            });
+    private static Set<String> stringSet(Object value) {
+        if (!(value instanceof Collection<?> collection)
+                || collection.stream().anyMatch(item -> !(item instanceof String))) {
+            throw new IllegalStateException("departedEmployees 必须是字符串数组");
         }
+        Set<String> result = new LinkedHashSet<>();
+        collection.forEach(item -> result.add(((String) item).trim()));
         return result;
     }
 
@@ -611,6 +624,13 @@ public class RevenueSummaryService {
                 .multiply(BigDecimal.valueOf(100)).divide(BigDecimal.valueOf(denominator), 2, RoundingMode.HALF_UP);
     }
 
+    static BigDecimal hundredSiteConversionRate(long validOrders, long siteCount, long periodDays) {
+        if (siteCount == 0 || periodDays <= 0) return BigDecimal.ZERO;
+        return BigDecimal.valueOf(validOrders).multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(siteCount).multiply(BigDecimal.valueOf(periodDays)),
+                        2, RoundingMode.HALF_UP);
+    }
+
     private static final class AccountStats {
         final String adminName;
         String group = "";
@@ -622,6 +642,7 @@ public class RevenueSummaryService {
         long copyOrders;
         long siteCount;
         long batchSiteCount;
+        long validOrderedSiteCount;
         final Map<String, Long> categoryOrders = new LinkedHashMap<>();
         final Map<String, Long> countryOrders = new LinkedHashMap<>();
         BigDecimal originalAmount = BigDecimal.ZERO;
@@ -641,6 +662,7 @@ public class RevenueSummaryService {
         long copyOrders;
         long siteCount;
         long batchSiteCount;
+        long validOrderedSiteCount;
         final Map<String, Long> categoryOrders = new LinkedHashMap<>();
         final Map<String, Long> countryOrders = new LinkedHashMap<>();
         BigDecimal originalAmount = BigDecimal.ZERO;

@@ -13,3 +13,9 @@ test('indexing views export all rows from the last applied filter scope', async 
   assert.match(api, /site-indexes\/export/)
   assert.match(api, /responseType: 'blob'/)
 })
+
+test('aggregate indexing values stay inside their table column', async () => {
+  const view = await readFile(new URL('../src/views/dashboard/IndexingList.vue', import.meta.url), 'utf8')
+  assert.match(view, /label="收录表现" min-width="230"/)
+  assert.match(view, /\.aggregate-index \{ min-width: 0; flex-wrap: wrap;/)
+})

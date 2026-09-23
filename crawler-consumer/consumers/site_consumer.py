@@ -15,6 +15,13 @@ import time
 from datetime import datetime, timezone
 from loguru import logger
 from consumers.base_consumer import BaseConsumer
+from consumers.account_merge import (
+    account_group,
+    build_account_merge_lookup,
+    canonical_account,
+    canonical_data_owners,
+)
+from consumers.order_dedupe import refresh_dedupe_keys
 from crawlers.site_crawler import AsyncSiteCrawler
 from crawlers.site_index_crawler import AsyncSiteIndexCrawler, normalize_domain
 from db.repository import CursorRepository, TaskCancelledError
@@ -117,7 +124,9 @@ class SiteConsumer(BaseConsumer):
             # 将爬取结果批量 UPSERT 到 site_info 表
             await self.repo.update_task_progress(task_id, 75, f"正在保存 {len(records)} 条站点记录")
             await self.append_task_log(self.repo, task_id, f"开始保存 {len(records)} 条站点记录")
-            deleted_sites, deleted_history = await self._upsert_site_info(records)
+            deleted_sites, deleted_history = await self._upsert_site_info(
+                records, payload.get("user_merge_map", {})
+            )
             await self.append_task_log(
                 self.repo, task_id,
                 f"镜像清理完成：删除废弃站点 {deleted_sites} 个、历史收录 {deleted_history} 条",
@@ -368,7 +377,7 @@ class SiteConsumer(BaseConsumer):
         deleted_sites = max(0, cur.rowcount)
         return deleted_history, deleted_sites
 
-    async def _upsert_site_info(self, records: list[dict]) -> tuple[int, int]:
+    async def _upsert_site_info(self, records: list[dict], user_merge_map: dict) -> tuple[int, int]:
         """将最新已建站集合写入 site_info，并删除远端已废弃站点。
 
         使用 INSERT ... ON DUPLICATE KEY UPDATE 确保幂等性：
@@ -379,10 +388,17 @@ class SiteConsumer(BaseConsumer):
             records (list[dict]): 站点记录列表，每条记录包含:
                 username, site_domain, admin_name, theme_name, product_category
         """
-        normalized = {
-            normalize_domain(r.get("site_domain")): r
-            for r in records if normalize_domain(r.get("site_domain"))
-        }
+        merge_lookup = build_account_merge_lookup(user_merge_map)
+        normalized = {}
+        for record in records:
+            domain = normalize_domain(record.get("site_domain"))
+            if not domain:
+                continue
+            normalized_record = dict(record)
+            canonical_admin = canonical_account(record.get("admin_name"), merge_lookup)
+            normalized_record["admin_name"] = canonical_admin
+            normalized_record["user_group"] = account_group(canonical_admin) or record.get("user_group")
+            normalized[domain] = normalized_record
         if not normalized:
             raise RuntimeError("远端未返回任何已建站数据，已停止镜像清理")
 
@@ -403,7 +419,7 @@ class SiteConsumer(BaseConsumer):
                              server_name=COALESCE(NULLIF(VALUES(server_name), ''), server_name),
                              server_ip=COALESCE(NULLIF(VALUES(server_ip), ''), server_ip),
                              admin_name=VALUES(admin_name),
-                             user_group=COALESCE(NULLIF(site_info.user_group, ''), NULLIF(VALUES(user_group), '')),
+                             user_group=COALESCE(NULLIF(VALUES(user_group), ''), site_info.user_group),
                              theme_name=VALUES(theme_name),
                              product_category=VALUES(product_category),
                              cat_names=VALUES(cat_names),
@@ -418,20 +434,91 @@ class SiteConsumer(BaseConsumer):
                          _json_array(r.get("cat_names")), r.get("site_tag", 0),
                          r.get("last_submitted_at"), r.get("domain_applied_at"), r.get("created_at")),
                     )
+                if merge_lookup:
+                    placeholders = ",".join(["%s"] * len(merge_lookup))
+                    await cur.execute(
+                        f"""SELECT admin_name, user_group, DATE(create_time)
+                            FROM orders
+                            WHERE admin_name IN ({placeholders}) AND create_time IS NOT NULL
+                            GROUP BY admin_name, user_group, DATE(create_time)""",
+                        tuple(merge_lookup),
+                    )
+                    affected_order_days = set()
+                    for alias, old_group, order_day in await cur.fetchall():
+                        new_group = account_group(merge_lookup[alias]) or old_group
+                        if old_group:
+                            affected_order_days.add((old_group, order_day))
+                        if new_group:
+                            affected_order_days.add((new_group, order_day))
+                    await cur.executemany(
+                        "UPDATE orders SET admin_name=%s, user_group=COALESCE(%s, user_group) WHERE admin_name=%s",
+                        [
+                            (primary, account_group(primary), alias)
+                            for alias, primary in merge_lookup.items()
+                        ],
+                    )
+                else:
+                    affected_order_days = set()
+                await cur.execute(
+                    """SELECT o.user_group, s.user_group, DATE(o.create_time)
+                       FROM orders o
+                       JOIN site_info s ON LOWER(CASE WHEN LEFT(TRIM(o.product_host), 4)='www.'
+                           THEN SUBSTRING(TRIM(o.product_host), 5) ELSE TRIM(o.product_host) END)
+                           COLLATE utf8mb4_unicode_ci
+                           = LOWER(CASE WHEN LEFT(TRIM(s.site_domain), 4)='www.'
+                           THEN SUBSTRING(TRIM(s.site_domain), 5) ELSE TRIM(s.site_domain) END)
+                           COLLATE utf8mb4_unicode_ci
+                       JOIN tmp_active_site_domains active ON active.site_domain=LOWER(CASE
+                           WHEN LEFT(TRIM(s.site_domain), 4)='www.' THEN SUBSTRING(TRIM(s.site_domain), 5)
+                           ELSE TRIM(s.site_domain) END) COLLATE utf8mb4_unicode_ci
+                       WHERE o.user_group COLLATE utf8mb4_unicode_ci
+                           <> s.user_group COLLATE utf8mb4_unicode_ci
+                         AND o.create_time IS NOT NULL
+                       GROUP BY o.user_group, s.user_group, DATE(o.create_time)"""
+                )
+                for old_group, new_group, order_day in await cur.fetchall():
+                    if old_group:
+                        affected_order_days.add((old_group, order_day))
+                    if new_group:
+                        affected_order_days.add((new_group, order_day))
                 await cur.executemany(
                     """UPDATE orders o
                        JOIN site_info s ON LOWER(CASE WHEN LEFT(TRIM(o.product_host), 4)='www.'
                            THEN SUBSTRING(TRIM(o.product_host), 5) ELSE TRIM(o.product_host) END)
+                           COLLATE utf8mb4_unicode_ci
                            = LOWER(CASE WHEN LEFT(TRIM(s.site_domain), 4)='www.'
                            THEN SUBSTRING(TRIM(s.site_domain), 5) ELSE TRIM(s.site_domain) END)
+                           COLLATE utf8mb4_unicode_ci
                        SET o.admin_name=s.admin_name,
+                           o.user_group=s.user_group,
                            o.theme_name=s.theme_name,
                            o.product_category=s.product_category,
                            o.site_tag=s.site_tag
                        WHERE LOWER(CASE WHEN LEFT(TRIM(s.site_domain), 4)='www.'
-                           THEN SUBSTRING(TRIM(s.site_domain), 5) ELSE TRIM(s.site_domain) END)=%s""",
+                           THEN SUBSTRING(TRIM(s.site_domain), 5) ELSE TRIM(s.site_domain) END)
+                           COLLATE utf8mb4_unicode_ci=%s""",
                     [(domain,) for domain in normalized],
                 )
+                for group, order_day in sorted(affected_order_days):
+                    await refresh_dedupe_keys(cur, group, order_day)
+                if merge_lookup:
+                    await cur.execute(
+                        """SELECT id, data_owner, shared_data_owners FROM sys_user
+                           WHERE TRIM(COALESCE(data_owner, '')) <> ''
+                              OR TRIM(COALESCE(shared_data_owners, '')) <> ''"""
+                    )
+                    owner_updates = []
+                    for user_id, data_owner, shared_data_owners in await cur.fetchall():
+                        canonical_owner = canonical_account(data_owner, merge_lookup)
+                        canonical_shared = canonical_data_owners(shared_data_owners, merge_lookup)
+                        if (canonical_owner != str(data_owner or "").strip()
+                                or canonical_shared != str(shared_data_owners or "").strip()):
+                            owner_updates.append((canonical_owner, canonical_shared, user_id))
+                    if owner_updates:
+                        await cur.executemany(
+                            "UPDATE sys_user SET data_owner=%s, shared_data_owners=%s WHERE id=%s",
+                            owner_updates,
+                        )
                 deleted_history, deleted_sites = await self._delete_inactive_sites(cur)
         return deleted_sites, deleted_history
 

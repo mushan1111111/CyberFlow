@@ -51,14 +51,14 @@
 
     <section class="panel revenue-panel">
       <div class="panel-heading revenue-heading">
-        <div><h2>收入转化与提成</h2><p>按当前统计周期汇总个人绩效、团队提成与月度转化</p></div>
+        <div><h2>收入转化与提成</h2><p>按当前统计周期汇总{{ isAdmin ? '个人绩效、团队提成与月度转化' : '个人绩效与月度转化' }}</p></div>
         <div class="revenue-rules">
           <el-button text size="small" :loading="revenueLoading" @click="loadDashboard">刷新统计</el-button>
           <div class="revenue-date-control"><span>订单统计</span><el-date-picker v-model="revenueDateRange" type="daterange" value-format="YYYY-MM-DD" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" class="revenue-date" @change="loadDashboard" /></div>
           <div class="revenue-date-control"><span>域名申请月份</span><el-date-picker v-model="siteCreatedMonth" type="month" value-format="YYYY-MM" placeholder="选择申请月份" class="revenue-month" @change="loadDashboard" /></div>
           <span>汇率 {{ revenueParameters.exchange_rate || '—' }}</span>
           <span>折算系数 {{ revenueParameters.rate_factor || '—' }}</span>
-          <span>固定规则：组长 2% · 普通 3/5/8% · 批量 2/4/6%</span>
+          <span>固定规则：{{ isAdmin ? '组长 2% · ' : '' }}普通 3/5/8% · 批量 2/4/6%</span>
         </div>
       </div>
       <el-tabs v-model="revenueTab" class="revenue-tabs">
@@ -69,9 +69,11 @@
             </el-table-column>
             <el-table-column prop="user_group" label="组别" width="70" />
             <el-table-column prop="real_name" label="姓名" min-width="120" />
-            <el-table-column prop="site_count" label="成熟站点" width="100" align="right" />
+            <el-table-column prop="site_count" label="所有站点" width="95" align="right" />
             <el-table-column prop="valid_deduplicated_orders" label="有效去重" width="100" align="right" />
-            <el-table-column label="转化率" width="100" align="right"><template #default="{ row }">{{ formatPercent(row.conversion_rate) }}</template></el-table-column>
+            <el-table-column label="订单转化率" width="105" align="right"><template #default="{ row }">{{ formatPercent(row.order_conversion_rate) }}</template></el-table-column>
+            <el-table-column label="站点转化率" width="105" align="right"><template #default="{ row }">{{ formatPercent(row.site_conversion_rate) }}</template></el-table-column>
+            <el-table-column label="百站转化率" width="105" align="right"><template #default="{ row }">{{ formatPercent(row.hundred_site_conversion_rate) }}</template></el-table-column>
             <el-table-column label="成功金额" min-width="130" align="right"><template #default="{ row }">{{ formatMoney(row.successful_amount) }}</template></el-table-column>
             <el-table-column label="组员总提成(RMB)" min-width="190" align="right" fixed="right"><template #default="{ row }"><div class="commission-breakdown"><strong>{{ formatCommission(row.total_member_commission_rmb) }}</strong><small><span>普通 {{ formatCommission(row.regular_commission_rmb) }}</span><span>批量 {{ formatCommission(row.batch_site_commission_rmb) }}</span></small></div></template></el-table-column>
           </el-table>
@@ -84,8 +86,11 @@
             <el-table-column prop="user_group" label="组别" width="70" />
             <el-table-column prop="leader_name" label="组长" min-width="120" />
             <el-table-column prop="member_count" label="成员" width="80" align="right" />
+            <el-table-column prop="site_count" label="所有站点" width="95" align="right" />
             <el-table-column prop="valid_deduplicated_orders" label="有效去重" width="100" align="right" />
-            <el-table-column label="转化率" width="100" align="right"><template #default="{ row }">{{ formatPercent(row.conversion_rate) }}</template></el-table-column>
+            <el-table-column label="订单转化率" width="105" align="right"><template #default="{ row }">{{ formatPercent(row.order_conversion_rate) }}</template></el-table-column>
+            <el-table-column label="站点转化率" width="105" align="right"><template #default="{ row }">{{ formatPercent(row.site_conversion_rate) }}</template></el-table-column>
+            <el-table-column label="百站转化率" width="105" align="right"><template #default="{ row }">{{ formatPercent(row.hundred_site_conversion_rate) }}</template></el-table-column>
             <el-table-column label="小组成功金额" min-width="145" align="right"><template #default="{ row }">{{ formatMoney(row.original_amount) }}</template></el-table-column>
             <el-table-column label="组长总提成(RMB)" min-width="210" align="right" fixed="right"><template #default="{ row }"><div class="commission-breakdown"><strong>{{ formatCommission(row.leader_total_commission_rmb ?? row.leader_commission_rmb) }}</strong><small><span>小组 {{ formatCommission(row.leader_commission_rmb) }}</span><span>个人 {{ formatCommission(row.leader_personal_commission_rmb) }}</span></small></div></template></el-table-column>
           </el-table>
@@ -174,7 +179,7 @@ const userGroup = ref('')
 const { groupOptions, loadSiteGroups } = useSiteGroups()
 const userRoles = computed(() => userStore.userInfo?.roles || [])
 const isAdmin = computed(() => userRoles.value.some(role => String(role).toUpperCase() === 'ROLE_ADMIN'))
-const canViewLeaderSummary = computed(() => isAdmin.value || userRoles.value.some(role => String(role).toUpperCase() === 'ROLE_OPERATOR'))
+const canViewLeaderSummary = computed(() => isAdmin.value)
 
 const todayLabel = new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' }).format(new Date())
 const toNumber = value => Number(value || 0)
@@ -182,7 +187,7 @@ const formatNumber = value => value === undefined || value === null ? '—' : to
 const formatMoney = value => value === undefined || value === null ? '—' : `$${toNumber(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const formatPlainMoney = value => value === undefined || value === null ? '—' : toNumber(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const formatCommission = value => value === undefined || value === null ? '—' : `¥${formatPlainMoney(value)}`
-const formatPercent = value => `${toNumber(value).toFixed(2)}%`
+const formatPercent = value => value === undefined || value === null ? '—' : `${toNumber(value).toFixed(2)}%`
 const formatRate = value => value === undefined || value === null ? '—' : `${(toNumber(value) * 100).toFixed(2)}%`
 const revenueParameters = computed(() => revenue.value.parameters || {})
 const personalPerformance = computed(() => revenue.value.personal_performance || [])
@@ -191,6 +196,7 @@ const monthlyConversion = computed(() => revenue.value.monthly_conversion || [])
 const personalDetails = row => [
   { label: '账号', value: row.accounts || '—' },
   { label: '去重订单', value: formatNumber(row.deduplicated_orders) },
+  { label: '有效出单站点', value: formatNumber(row.valid_ordered_site_count) },
   { label: '成功订单', value: formatNumber(row.successful_orders) },
   { label: '原成交金额', value: formatMoney(row.original_amount) },
   { label: '实习生同步', value: formatMoney(row.synced_amount) },
@@ -201,8 +207,9 @@ const personalDetails = row => [
   { label: `批量提成（${formatRate(row.batch_site_commission_rate)}）`, value: formatCommission(row.batch_site_commission_rmb) },
 ]
 const leaderDetails = row => [
-  { label: '成熟站点', value: formatNumber(row.site_count) },
+  { label: '所有站点', value: formatNumber(row.site_count) },
   { label: '去重订单', value: formatNumber(row.deduplicated_orders) },
+  { label: '有效出单站点', value: formatNumber(row.valid_ordered_site_count) },
   { label: '组长个人业绩', value: formatMoney(row.leader_personal_amount) },
   { label: '小组提成基数', value: formatMoney(row.commission_base_amount) },
   { label: '小组提成', value: formatCommission(row.leader_commission_rmb) },

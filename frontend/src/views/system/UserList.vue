@@ -14,8 +14,11 @@
       <el-table-column prop="id" label="ID" width="60" />
       <el-table-column prop="username" label="用户名" width="120" />
       <el-table-column prop="nickname" label="昵称" width="120" />
-      <el-table-column label="数据归属" min-width="180">
-        <template #default="{ row }">{{ formatOwners(row.dataOwner) }}</template>
+      <el-table-column label="本人数据归属" min-width="150">
+        <template #default="{ row }">{{ row.dataOwner || '未配置' }}</template>
+      </el-table-column>
+      <el-table-column label="可查看其他成员" min-width="190">
+        <template #default="{ row }">{{ formatOwners(row.sharedDataOwners) }}</template>
       </el-table-column>
       <el-table-column prop="email" label="邮箱" width="180" />
       <el-table-column prop="status" label="状态" width="80">
@@ -43,8 +46,8 @@
     />
 
     <!-- 新增/编辑弹窗 -->
-    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑用户' : '新增用户'" width="500px">
-      <el-form :model="form" label-width="80px">
+    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑用户' : '新增用户'" width="760px">
+      <el-form :model="form" label-width="120px">
         <el-form-item label="用户名">
           <!-- 编辑时用户名不可修改 -->
           <el-input v-model="form.username" :disabled="isEdit" />
@@ -52,11 +55,27 @@
         <el-form-item label="昵称">
           <el-input v-model="form.nickname" />
         </el-form-item>
-        <el-form-item label="数据归属">
-          <el-select v-model="form.dataOwners" multiple filterable allow-create default-first-option
-            placeholder="输入并回车，可配置多个站点/订单管理员名称" style="width: 100%">
-            <el-option v-for="owner in form.dataOwners" :key="owner" :label="owner" :value="owner" />
+        <el-form-item label="本人数据归属">
+          <el-input v-model="form.dataOwner" placeholder="只能配置一个站点/订单管理员名称" />
+        </el-form-item>
+        <el-form-item label="其他成员">
+          <el-select v-model="form.sharedDataOwners" multiple filterable allow-create default-first-option
+            placeholder="输入并回车，选择允许查看的其他成员" style="width: 100%">
+            <el-option v-for="owner in form.sharedDataOwners" :key="owner" :label="owner" :value="owner" />
           </el-select>
+        </el-form-item>
+        <el-form-item label="他人字段权限">
+          <div class="field-permissions">
+            <section v-for="group in sharedFieldGroups" :key="group.label">
+              <strong>{{ group.label }}</strong>
+              <el-checkbox-group v-model="form.sharedDataFields">
+                <el-checkbox v-for="field in group.fields" :key="field.value" :value="field.value">
+                  {{ field.label }}
+                </el-checkbox>
+              </el-checkbox-group>
+            </section>
+            <small>未勾选字段不会由后端返回；本人数据不受这些选项限制。</small>
+          </div>
         </el-form-item>
         <el-form-item label="邮箱">
           <el-input v-model="form.email" />
@@ -131,7 +150,25 @@ const allRoles = ref([])
 const selectedRoles = ref([])
 
 /** 用户表单数据 */
-const form = reactive({ username: '', nickname: '', dataOwners: [], email: '', password: '', status: 1 })
+const form = reactive({ username: '', nickname: '', dataOwner: '', sharedDataOwners: [], sharedDataFields: [], email: '', password: '', status: 1 })
+
+const sharedFieldGroups = [
+  { label: '个人绩效', fields: [
+    ['组别', 'performance.user_group'], ['姓名 / 账号', 'performance.real_name'],
+    ['申请月份', 'performance.site_month'], ['站点数', 'performance.site_count'],
+    ['有效去重及订单数', 'performance.valid_deduplicated_orders'],
+    ['订单转化率', 'performance.order_conversion_rate'], ['站点转化率', 'performance.site_conversion_rate'],
+    ['百站转化率', 'performance.hundred_site_conversion_rate'], ['成功金额', 'performance.successful_amount'],
+    ['提成', 'performance.commission'], ['分类 / 国家明细', 'performance.breakdown'],
+  ].map(([label, value]) => ({ label, value })) },
+  { label: '订单', fields: [
+    ['订单号', 'order.id'], ['商品信息 / 图片', 'order.product_info'], ['金额', 'order.amount'],
+    ['币种', 'order.currency'], ['订单站点', 'order.product_host'], ['分类明细', 'order.category'],
+    ['建站类型', 'order.site_tag'], ['支付状态', 'order.pay_status'], ['国家 / 地区', 'order.country'],
+    ['收货邮箱', 'order.shipping_email'], ['收货地址', 'order.shipping_address'],
+    ['管理员', 'order.admin_name'], ['用户组', 'order.user_group'], ['创建时间', 'order.create_time'],
+  ].map(([label, value]) => ({ label, value })) },
+]
 
 function parseOwners(value) {
   if (Array.isArray(value)) return value
@@ -140,6 +177,10 @@ function parseOwners(value) {
 
 function formatOwners(value) {
   return parseOwners(value).join('、') || '未配置'
+}
+
+function parseFields(value) {
+  return String(value || '').split(',').map(item => item.trim()).filter(Boolean)
 }
 
 /**
@@ -169,10 +210,19 @@ function openDialog(row) {
   isEdit.value = !!row
   if (row) {
     currentUserId.value = row.id
-    Object.assign(form, { username: row.username, nickname: row.nickname, dataOwners: parseOwners(row.dataOwner), email: row.email, password: '', status: row.status })
+    Object.assign(form, {
+      username: row.username,
+      nickname: row.nickname,
+      dataOwner: row.dataOwner || '',
+      sharedDataOwners: parseOwners(row.sharedDataOwners),
+      sharedDataFields: parseFields(row.sharedDataFields),
+      email: row.email,
+      password: '',
+      status: row.status,
+    })
   } else {
     currentUserId.value = null
-    Object.assign(form, { username: '', nickname: '', dataOwners: [], email: '', password: '', status: 1 })
+    Object.assign(form, { username: '', nickname: '', dataOwner: '', sharedDataOwners: [], sharedDataFields: [], email: '', password: '', status: 1 })
   }
   dialogVisible.value = true
 }
@@ -192,7 +242,9 @@ async function handleSave() {
       await updateUser(currentUserId.value, {
         username: form.username,
         nickname: form.nickname,
-        dataOwner: form.dataOwners.join(','),
+        dataOwner: form.dataOwner,
+        sharedDataOwners: form.sharedDataOwners.join(','),
+        sharedDataFields: form.sharedDataFields.join(','),
         email: form.email,
         status: form.status,
         password: form.password || undefined,
@@ -202,7 +254,9 @@ async function handleSave() {
       await createUser({
         username: form.username,
         nickname: form.nickname,
-        dataOwner: form.dataOwners.join(','),
+        dataOwner: form.dataOwner,
+        sharedDataOwners: form.sharedDataOwners.join(','),
+        sharedDataFields: form.sharedDataFields.join(','),
         email: form.email,
         password: form.password,
         status: form.status,
@@ -261,3 +315,12 @@ async function handleAssignRoles() {
 
 onMounted(fetchData)
 </script>
+
+<style scoped>
+.field-permissions { display: grid; width: 100%; gap: 14px; }
+.field-permissions section { padding: 12px 14px; border: 1px solid var(--el-border-color-lighter); border-radius: 8px; }
+.field-permissions strong { display: block; margin-bottom: 8px; color: var(--el-text-color-primary); }
+.field-permissions :deep(.el-checkbox-group) { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 10px; }
+.field-permissions :deep(.el-checkbox) { margin-right: 0; }
+.field-permissions small { color: var(--el-text-color-secondary); }
+</style>
