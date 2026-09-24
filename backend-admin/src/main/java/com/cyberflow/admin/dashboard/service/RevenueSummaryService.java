@@ -59,6 +59,11 @@ public class RevenueSummaryService {
         Map<String, Object> config = configService.getRevenueConfig();
         Map<String, String> teacherMap = stringMap(config.get("teacherMap"));
         Map<String, String> leaderMap = stringMap(config.get("leaderConfig"));
+        // The crawler merges alias accounts into their primary one when it writes
+        // orders, but a site synced before the merge map was configured (or a
+        // leader/teacher name typed in the config) can still carry an alias, so
+        // names are normalized through the merge map before they are compared.
+        Map<String, List<String>> mergeMap = stringListMap(config.get("userMergeMap"));
         Set<String> departedEmployees = stringSet(config.get("departedEmployees"));
         List<String> teacherSuffixes = scope.administrator()
                 ? List.of()
@@ -590,6 +595,27 @@ public class RevenueSummaryService {
     private static int siteTag(Object value) {
         int tag = number(value).intValue();
         return tag >= 0 && tag <= 2 ? tag : 0;
+    }
+
+    /** Maps an alias account name back to its primary name, or returns it unchanged. */
+    private static String realName(String adminName, Map<String, List<String>> mergeMap) {
+        if (adminName == null) return null;
+        for (Map.Entry<String, List<String>> entry : mergeMap.entrySet()) {
+            if (entry.getValue().contains(adminName)) return entry.getKey();
+        }
+        return adminName;
+    }
+
+    private static Map<String, List<String>> stringListMap(Object value) {
+        Map<String, List<String>> result = new LinkedHashMap<>();
+        if (value instanceof Map<?, ?> map) {
+            map.forEach((k, v) -> {
+                if (v instanceof Collection<?> collection) {
+                    result.put(String.valueOf(k), collection.stream().map(String::valueOf).toList());
+                }
+            });
+        }
+        return result;
     }
 
     private static Map<String, String> stringMap(Object value) {
