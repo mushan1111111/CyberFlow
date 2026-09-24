@@ -81,7 +81,7 @@ class ProductWorkspaceTest {
         SysUser user = new SysUser(); user.setId(1L); user.setStatus(1);
         when(users.selectByUsername("alice")).thenReturn(user);
         when(users.selectPermissionsByUserId(1L)).thenReturn(List.of("dashboard:product:view"));
-        when(scopes.forUsername("alice")).thenReturn(new DataScope(false, false, "Owner A"));
+        when(scopes.forUsername("alice")).thenReturn(new DataScope(false, false, "Owner A", List.of(), java.util.Set.of()));
         when(mapper.scopeDomains(List.of("Owner A"))).thenReturn(List.of("www.shop.test"));
         assertEquals(List.of("shop.test", "www.shop.test"), service.allowedDomains("alice"));
         user.setStatus(0);

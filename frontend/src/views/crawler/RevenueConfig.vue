@@ -1,18 +1,14 @@
 <template>
   <div class="crawler-page">
-    <el-card>
-      <template #header>
-        <div class="card-header">
-          <span>收入参数</span>
-          <div class="header-actions">
-            <el-tag v-if="hasChanges" type="warning">有未保存修改</el-tag>
-            <el-button v-if="canEditConfig" type="primary" :disabled="!hasChanges" :loading="saving" @click="handleSave">保存参数</el-button>
-          </div>
-        </div>
-      </template>
+    <div class="page-actions">
+      <el-tag v-if="hasChanges" type="warning">有未保存修改</el-tag>
+      <el-button v-if="canEditConfig" type="primary" :disabled="!hasChanges" :loading="saving" @click="handleSave">保存参数</el-button>
+    </div>
 
+    <el-card class="config-section">
+      <template #header><div class="card-header"><span>订单相关</span></div></template>
       <el-alert
-        title="提成比例采用固定业务规则，无需配置；此处仅维护汇率、折算系数和人员归属。"
+        title="提成比例采用固定业务规则，无需配置；此处维护订单金额核算参数。"
         type="info"
         :closable="false"
         show-icon
@@ -33,6 +29,12 @@
         <el-form-item label="折算系数">
           <el-input-number v-model="form.rateFactor" :disabled="!canEditConfig" :min="0" :max="1" :precision="4" :step="0.01" />
         </el-form-item>
+      </el-form>
+    </el-card>
+
+    <el-card class="config-section">
+      <template #header><div class="card-header"><span>人员相关</span></div></template>
+      <el-form :model="form" label-width="150px" class="config-form">
         <el-form-item label="组长配置">
           <el-input v-model="leaderConfigText" :disabled="!canEditConfig" type="textarea" :rows="3" placeholder='{"业务一组":"组长账号"}' />
         </el-form-item>
@@ -42,6 +44,22 @@
         </el-form-item>
         <el-form-item label="多账号合并">
           <el-input v-model="userMergeMapText" :disabled="!canEditConfig" type="textarea" :rows="5" placeholder='{"B-姓名":["B-账号1","B-账号2"]}' />
+          <div class="help-text">键为主账号，数组为待合并账号；保存后执行一次站点同步，将站点、订单和用户数据权限统一归属到主账号。</div>
+        </el-form-item>
+        <el-form-item label="离职员工名单">
+          <el-select
+            v-model="departedEmployees"
+            :disabled="!canEditConfig"
+            multiple
+            filterable
+            allow-create
+            default-first-option
+            placeholder="输入主账号后按回车添加"
+            class="full-width"
+          >
+            <el-option v-for="employee in departedEmployees" :key="employee" :label="employee" :value="employee" />
+          </el-select>
+          <div class="help-text">按合并后的主账号精确匹配，仅从个人绩效列表隐藏，不改变历史订单、月度转化、组长汇总和金额。</div>
         </el-form-item>
       </el-form>
     </el-card>
@@ -60,6 +78,7 @@ const saving = ref(false)
 const leaderConfigText = ref('{}')
 const teacherMapText = ref('{}')
 const userMergeMapText = ref('{}')
+const departedEmployees = ref([])
 const savedSnapshot = ref('')
 const form = reactive({ exchangeRate: 6.73, rateFactor: 0.42 })
 const hasChanges = computed(() => savedSnapshot.value !== snapshot())
@@ -70,6 +89,7 @@ function snapshot() {
     leaderConfig: leaderConfigText.value,
     teacherMap: teacherMapText.value,
     userMergeMap: userMergeMapText.value,
+    departedEmployees: departedEmployees.value,
   })
 }
 
@@ -86,6 +106,7 @@ async function loadConfig() {
   leaderConfigText.value = JSON.stringify(response.data?.leaderConfig || {}, null, 2)
   teacherMapText.value = JSON.stringify(response.data?.teacherMap || {}, null, 2)
   userMergeMapText.value = JSON.stringify(response.data?.userMergeMap || {}, null, 2)
+  departedEmployees.value = response.data?.departedEmployees || []
   savedSnapshot.value = snapshot()
 }
 
@@ -123,12 +144,18 @@ function buildPayload() {
       || Number(form.rateFactor) > 1) {
     throw new Error('汇率必须大于 0，折算系数必须在 0% 到 100% 之间')
   }
+  const normalizedDepartedEmployees = departedEmployees.value.map(employee => employee.trim())
+  if (normalizedDepartedEmployees.some(employee => !employee)
+      || new Set(normalizedDepartedEmployees).size !== normalizedDepartedEmployees.length) {
+    throw new Error('离职员工账号不能为空或重复')
+  }
   return {
     exchangeRate: Number(form.exchangeRate),
     rateFactor: Number(form.rateFactor),
     leaderConfig: parseObject(leaderConfigText.value, '组长配置'),
     teacherMap: parseObject(teacherMapText.value, '导师后缀映射'),
     userMergeMap: parseObject(userMergeMapText.value, '多账号合并'),
+    departedEmployees: normalizedDepartedEmployees,
   }
 }
 
@@ -137,10 +164,13 @@ onMounted(loadConfig)
 
 <style scoped>
 .crawler-page { max-width: 900px; }
-.card-header { display: flex; align-items: center; justify-content: space-between; }.header-actions { display: flex; align-items: center; gap: 10px; }
+.page-actions { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-bottom: 14px; }
+.config-section + .config-section { margin-top: 16px; }
+.card-header { display: flex; align-items: center; justify-content: space-between; }
 .config-form { max-width: 720px; }
 .config-tip { margin-bottom: 16px; }.rate-summary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 20px; }.rate-summary > div { padding: 13px 15px; border: 1px solid #edf0f5; border-radius: 8px; background: #fafbfd; }.rate-summary span { display: block; color: #8b98ad; font-size: 12px; }.rate-summary strong { display: block; margin-top: 7px; color: #2f4262; font-size: 20px; }.rate-summary small { display: block; margin-top: 4px; color: #9aa5b5; font-size: 11px; white-space: nowrap; }
 .help-text { margin-top: 5px; color: #8b97aa; font-size: 12px; line-height: 1.5; }
+.full-width { width: 100%; }
 .fixed-rule { font-size: 16px !important; }
 @media (max-width: 1000px) { .rate-summary { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 700px) { .rate-summary { grid-template-columns: repeat(2, 1fr); } }

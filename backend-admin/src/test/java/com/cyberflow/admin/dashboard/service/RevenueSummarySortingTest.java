@@ -80,6 +80,14 @@ class RevenueSummarySortingTest {
     }
 
     @Test
+    void hundredSiteConversionUsesTheInclusiveReportingPeriod() {
+        assertEquals(new BigDecimal("1.45"),
+                RevenueSummaryService.hundredSiteConversionRate(2346, 7030, 23));
+        assertEquals(BigDecimal.ZERO,
+                RevenueSummaryService.hundredSiteConversionRate(10, 0, 23));
+    }
+
+    @Test
     void personalAndMonthlyRowsUseDeduplicatedOrderDescendingOrder() {
         List<Map<String, Object>> rows = new ArrayList<>(List.of(
                 row("A", "three", 3),

@@ -14,6 +14,32 @@ PREPARE data_owner_stmt FROM @data_owner_sql;
 EXECUTE data_owner_stmt;
 DEALLOCATE PREPARE data_owner_stmt;
 
+SET @shared_data_owners_exists = (
+    SELECT COUNT(*) FROM information_schema.columns
+    WHERE table_schema = DATABASE() AND table_name = 'sys_user' AND column_name = 'shared_data_owners'
+);
+SET @shared_data_owners_sql = IF(
+    @shared_data_owners_exists = 0,
+    'ALTER TABLE sys_user ADD COLUMN shared_data_owners VARCHAR(1000) COMMENT ''允许查看的其他成员管理员名称，用逗号分隔'' AFTER data_owner',
+    'SELECT 1'
+);
+PREPARE shared_data_owners_stmt FROM @shared_data_owners_sql;
+EXECUTE shared_data_owners_stmt;
+DEALLOCATE PREPARE shared_data_owners_stmt;
+
+SET @shared_data_fields_exists = (
+    SELECT COUNT(*) FROM information_schema.columns
+    WHERE table_schema = DATABASE() AND table_name = 'sys_user' AND column_name = 'shared_data_fields'
+);
+SET @shared_data_fields_sql = IF(
+    @shared_data_fields_exists = 0,
+    'ALTER TABLE sys_user ADD COLUMN shared_data_fields TEXT COMMENT ''其他成员数据字段权限编码'' AFTER shared_data_owners',
+    'SELECT 1'
+);
+PREPARE shared_data_fields_stmt FROM @shared_data_fields_sql;
+EXECUTE shared_data_fields_stmt;
+DEALLOCATE PREPARE shared_data_fields_stmt;
+
 CREATE DATABASE IF NOT EXISTS scraped_data
     DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 

@@ -1,7 +1,9 @@
 package com.cyberflow.admin.dashboard.service;
 
 import com.cyberflow.admin.dashboard.mapper.*;
+import com.cyberflow.admin.common.DataScope;
 import com.cyberflow.admin.common.DataScopeService;
+import com.cyberflow.admin.common.SharedDataFields;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.cursor.Cursor;
@@ -215,20 +217,62 @@ public class DashboardService {
                                           String endDate, String adminName, String rawUserGroup, String domain,
                                           String payStatus, String currency, String country) {
         String userGroup = normalizeUserGroup(rawUserGroup);
-        String ownerName = ownerName();
+        var scope = dataScopeService.current();
+        boolean includeShared = scope.administrator() || sharedOrderFiltersAllowed(
+                scope, orderId, startDate, endDate, adminName, userGroup, domain, payStatus, currency, country);
+        String ownerName = scope.administrator() ? null
+                : includeShared ? scope.ownerFilterFor("order.") : scope.ownOwnerFilter();
         int offset = (page - 1) * size;
         long total = orderMapper.countOrdersFiltered(orderId, adminName, userGroup, domain, payStatus,
                 currency, country, ownerName, startDate, endDate);
-        List<Map<String, Object>> list = orderMapper.listOrdersFiltered(orderId, adminName, userGroup,
-                domain, payStatus, currency, country, ownerName, startDate, endDate, offset, size);
-        Map<String, Object> summary = orderMapper.summarizeOrdersFiltered(orderId, adminName, userGroup,
-                domain, payStatus, currency, country, ownerName, startDate, endDate);
+        List<Map<String, Object>> list = new ArrayList<>(orderMapper.listOrdersFiltered(
+                orderId, adminName, userGroup, domain, payStatus, currency, country,
+                ownerName, startDate, endDate, offset, size));
+        Map<String, Object> summary = new LinkedHashMap<>(orderMapper.summarizeOrdersFiltered(
+                orderId, adminName, userGroup, domain, payStatus, currency, country,
+                ownerName, startDate, endDate));
+        if (!scope.administrator()) {
+            list.forEach(row -> {
+                if (!scope.owns(Objects.toString(row.get("admin_name"), ""))) {
+                    SharedDataFields.retainOrderFields(row, scope);
+                }
+            });
+            if (includeShared && scope.includesSharedOwners("order.")) {
+                if (!scope.canViewSharedField("order.amount")) {
+                    summary.remove("total_amount");
+                    summary.remove("paid_amount");
+                }
+                if (!scope.canViewSharedField("order.pay_status")) {
+                    summary.remove("paid_count");
+                    summary.remove("paid_amount");
+                }
+            }
+        }
 
         var result = new LinkedHashMap<String, Object>();
         result.put("total", total);
         result.put("list", list);
         result.put("summary", summary);
         return result;
+    }
+
+    private static boolean sharedOrderFiltersAllowed(
+            DataScope scope, String orderId, String startDate, String endDate,
+            String adminName, String userGroup, String domain, String payStatus, String currency, String country) {
+        if (!scope.includesSharedOwners("order.")) return false;
+        return permittedFilter(scope, orderId, "order.id")
+                && permittedFilter(scope, adminName, "order.admin_name")
+                && permittedFilter(scope, userGroup, "order.user_group")
+                && permittedFilter(scope, domain, "order.product_host")
+                && permittedFilter(scope, payStatus, "order.pay_status")
+                && permittedFilter(scope, currency, "order.currency")
+                && permittedFilter(scope, country, "order.country")
+                && permittedFilter(scope, startDate, "order.create_time")
+                && permittedFilter(scope, endDate, "order.create_time");
+    }
+
+    private static boolean permittedFilter(DataScope scope, String value, String field) {
+        return value == null || value.isBlank() || scope.canViewSharedField(field);
     }
 
     /** Delete all orders. Authorization is enforced by the controller and the admin role. */

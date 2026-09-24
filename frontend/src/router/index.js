@@ -40,7 +40,7 @@ const routes = [
       { path: 'crawler/collect', redirect: '/crawler/site' },
       { path: 'crawler/order', redirect: '/crawler/site' },
       { path: 'crawler/site-account', name: 'SiteAccountSync', component: () => import('@/views/crawler/SiteAccountSync.vue'), meta: { title: '站点账号同步', section: '数据同步', description: '用个人建站平台账号同步本人站点的主题与分类', perm: 'crawler:site:sync' } },
-      { path: 'crawler/revenue-config', name: 'CrawlerRevenueConfig', component: () => import('@/views/crawler/RevenueConfig.vue'), meta: { title: '收入参数', section: '数据同步', description: '维护汇率、折算系数与人员归属映射', perm: 'crawler:revenue:view' } },
+      { path: 'crawler/revenue-config', name: 'CrawlerRevenueConfig', component: () => import('@/views/crawler/RevenueConfig.vue'), meta: { title: '收入参数', section: '数据同步', description: '维护订单核算与人员归属参数', perm: 'crawler:revenue:view' } },
       { path: 'crawler/history', name: 'CrawlerHistory', component: () => import('@/views/crawler/TaskHistory.vue'), meta: { title: '任务历史', section: '数据同步', description: '统一追踪同步与商品采集任务的执行结果', perm: 'crawler:history:view' } },
       { path: 'crawler/schedule', name: 'CrawlerSchedule', component: () => import('@/views/crawler/ScheduleTask.vue'), meta: { title: '计划任务', section: '数据同步', description: '统一管理爬虫任务的自动执行计划', perm: 'crawler:schedule:view' } },
       { path: 'crawler/selector-template', name: 'SelectorTemplate', component: () => import('@/views/crawler/SelectorTemplate.vue'), meta: { title: '选择器模板', section: '商品采集', description: '维护不同电商平台的商品字段提取规则', perm: 'selector:template:list' } },

@@ -7,7 +7,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /** Resolves the backend-enforced row scope for the authenticated user. */
 @Service
@@ -35,30 +38,35 @@ public class DataScopeService {
             return DataScope.all();
         }
 
-        // dataOwner is the explicit mapping to site_info.admin_name. The
-        // username/nickname fallbacks keep existing installations usable.
-        String ownerName = normalizeOwners(user.getDataOwner());
-        if (ownerName.isBlank()) {
-            ownerName = firstNonBlank(user.getUsername(), user.getNickname());
-        }
+        String ownerName = normalizeOwner(user.getDataOwner());
+        List<String> sharedOwners = normalizeOwners(user.getSharedDataOwners()).stream()
+                .filter(owner -> !owner.equals(ownerName))
+                .toList();
+        Set<String> sharedFields = normalizeFields(user.getSharedDataFields());
         boolean operator = roles.stream().anyMatch("ROLE_OPERATOR"::equalsIgnoreCase);
-        return new DataScope(false, operator, ownerName);
+        return new DataScope(false, operator, ownerName, sharedOwners, sharedFields);
     }
 
-    private static String normalizeOwners(String value) {
-        if (value == null || value.isBlank()) return "";
-        return java.util.Arrays.stream(value.split("[,，、\\n]"))
+    private static String normalizeOwner(String value) {
+        String owner = value == null ? "" : value.trim();
+        return owner.isBlank() ? "\u0000" : owner;
+    }
+
+    private static List<String> normalizeOwners(String value) {
+        if (value == null || value.isBlank()) return List.of();
+        return Arrays.stream(value.split("[,，、\\n]"))
                 .map(String::trim)
                 .filter(item -> !item.isBlank())
                 .distinct()
-                .collect(java.util.stream.Collectors.joining(","));
+                .toList();
     }
 
-    private static String firstNonBlank(String... values) {
-        for (String value : values) {
-            if (value != null && !value.isBlank()) return value.trim();
-        }
-        // An unmapped account must see no rows, including unassigned data.
-        return "\u0000";
+    private static Set<String> normalizeFields(String value) {
+        if (value == null || value.isBlank()) return Set.of();
+        var result = Arrays.stream(value.split(","))
+                .map(String::trim)
+                .filter(SharedDataFields.all()::contains)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        return Set.copyOf(result);
     }
 }

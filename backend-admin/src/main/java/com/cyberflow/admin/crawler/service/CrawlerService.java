@@ -62,7 +62,8 @@ public class CrawlerService {
         saveTaskHistory(taskId, "site_crawl", "manual", null);
         try {
             publisher.publishSiteCrawl(taskId, crawlerConfigService.getAdminPlatform(),
-                    crawlerConfigService.getSiteStrategy(), lastUpdatedAt, "manual");
+                    crawlerConfigService.getSiteStrategy(), crawlerConfigService.getUserMergeMap(),
+                    lastUpdatedAt, "manual");
         } catch (RuntimeException ex) {
             taskHistoryService.markDispatchFailed(taskId, ex.getMessage());
             throw ex;

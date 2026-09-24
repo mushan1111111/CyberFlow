@@ -69,3 +69,13 @@ test('overview surfaces commission totals and explains their composition', async
   assert.match(details, /客户国家占比/)
   assert.match(details, /countryChartOption/)
 })
+
+test('personal and leader performance use all-site conversion metrics and admin-only leader visibility', async () => {
+  const overview = await readFile(new URL('../src/views/dashboard/Overview.vue', import.meta.url), 'utf8')
+  assert.match(overview, /label="所有站点"/)
+  assert.match(overview, /row\.order_conversion_rate/)
+  assert.match(overview, /row\.site_conversion_rate/)
+  assert.match(overview, /row\.hundred_site_conversion_rate/)
+  assert.match(overview, /const canViewLeaderSummary = computed\(\(\) => isAdmin\.value\)/)
+  assert.doesNotMatch(overview, /canViewLeaderSummary[\s\S]{0,120}ROLE_OPERATOR/)
+})

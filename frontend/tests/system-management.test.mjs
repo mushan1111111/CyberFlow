@@ -27,6 +27,15 @@ test('role assignment retains half-checked parent menus', async () => {
   assert.match(roles, /new Set/)
 })
 
+test('user management configures backend-enforced shared fields for performance and orders', async () => {
+  const users = await source('../src/views/system/UserList.vue')
+  assert.match(users, /本人数据归属/)
+  assert.match(users, /可查看其他成员/)
+  assert.match(users, /performance\.hundred_site_conversion_rate/)
+  assert.match(users, /order\.shipping_email/)
+  assert.match(users, /sharedDataFields\.join/)
+})
+
 test('route permissions deny empty or stale permission lists', async () => {
   const router = await source('../src/router/index.js')
   const layout = await source('../src/views/layout/index.vue')
