@@ -211,6 +211,21 @@ CREATE TABLE IF NOT EXISTS site_info (
     INDEX idx_site_server (server_name, server_ip)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Retain non-sensitive ownership and cohort data when a built site is retired.
+CREATE TABLE IF NOT EXISTS retired_site_info (
+    site_domain      VARCHAR(255) NOT NULL PRIMARY KEY,
+    admin_name       VARCHAR(100),
+    user_group       VARCHAR(32),
+    theme_name       VARCHAR(100),
+    product_category VARCHAR(100),
+    cat_names        JSON,
+    site_tag         TINYINT NOT NULL DEFAULT 0,
+    domain_applied_at DATETIME,
+    created_at       DATETIME,
+    retired_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_retired_site_owner (admin_name, user_group)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS orders (
     id                  BIGINT NOT NULL,
     amount              DECIMAL(10, 2),
@@ -285,8 +300,7 @@ INSERT IGNORE INTO crawler_schedule_config (task_type, cron_expression, enabled)
     ('site_crawl', '0 0 2 * * ?', 1),
     ('site_index', '0 30 2 * * ?', 1),
     ('order_crawl', '0 0 3 * * ?', 1),
-    ('site_account', '0 30 3 ? * MON', 1),
-    ('site_health', '0 0/30 * * * ?', 1);
+    ('site_account', '0 30 3 ? * MON', 1);
 
 INSERT INTO selector_template (
     name, platform, title_selector, price_selector, price_regex,

@@ -435,6 +435,21 @@ CREATE TABLE IF NOT EXISTS site_info (
     INDEX idx_site_server (server_name, server_ip)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='站点信息';
 
+-- Preserve historical order ownership and site cohorts without retaining login credentials.
+CREATE TABLE IF NOT EXISTS retired_site_info (
+    site_domain       VARCHAR(255) NOT NULL PRIMARY KEY,
+    admin_name        VARCHAR(100),
+    user_group        VARCHAR(32),
+    theme_name        VARCHAR(100),
+    product_category  VARCHAR(100),
+    cat_names         JSON,
+    site_tag          TINYINT NOT NULL DEFAULT 0,
+    domain_applied_at DATETIME,
+    created_at        DATETIME,
+    retired_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_retired_site_owner (admin_name, user_group)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='废弃站点的非敏感历史归属';
+
 -- ------------------------------------------------------------
 -- 订单表 — 存储电商平台支付系统的订单流水
 -- ------------------------------------------------------------
@@ -726,8 +741,7 @@ INSERT INTO crawler_schedule_config (task_type, cron_expression, enabled) VALUES
     ('site_crawl', '0 0 */6 * * ?', 1),
     ('site_index', '0 0 0 * * ?', 1),
     ('order_crawl', '0 0 */6 * * ?', 1),
-    ('site_account', '0 30 3 ? * MON', 1),
-    ('site_health', '0 0/30 * * * ?', 1)
+    ('site_account', '0 30 3 ? * MON', 1)
 ON DUPLICATE KEY UPDATE task_type=task_type;
 
 -- ============================================================
@@ -1244,6 +1258,7 @@ INSERT INTO sys_menu(id,parent_id,menu_name,menu_type,perms,path,component,icon,
 ON DUPLICATE KEY UPDATE parent_id=VALUES(parent_id),menu_name=VALUES(menu_name),menu_type=VALUES(menu_type),perms=VALUES(perms),path=VALUES(path),component=VALUES(component),icon=VALUES(icon),sort_order=VALUES(sort_order),status=VALUES(status);
 INSERT IGNORE INTO sys_role_menu(role_id,menu_id)
 SELECT r.id,m.id FROM sys_role r CROSS JOIN sys_menu m
-WHERE r.role_code IN('ROLE_ADMIN','ROLE_OPERATOR') AND m.id IN(76,77);
+WHERE (r.role_code IN('ROLE_ADMIN','ROLE_OPERATOR') AND m.id=76)
+   OR (r.role_code='ROLE_ADMIN' AND m.id=77);
 INSERT IGNORE INTO sys_role_menu(role_id,menu_id)
 SELECT r.id,76 FROM sys_role r WHERE r.role_code='ROLE_USER';

@@ -4,7 +4,6 @@ import com.cyberflow.admin.crawler.scheduler.OrderCrawlJob;
 import com.cyberflow.admin.crawler.scheduler.SiteAccountSyncJob;
 import com.cyberflow.admin.crawler.scheduler.SiteCrawlJob;
 import com.cyberflow.admin.crawler.scheduler.SiteIndexCrawlJob;
-import com.cyberflow.admin.crawler.scheduler.SiteHealthCheckJob;
 import org.quartz.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -45,8 +44,6 @@ public class QuartzConfig {
     @Value("${cyberflow.crawler.site-account-cron}")
     private String siteAccountCron;
 
-    @Value("${cyberflow.crawler.health-cron:0 0/30 * * * ?}")
-    private String healthCron;
 
     /**
      * 创建站点爬取任务的 JobDetail，设置为持久化存储。
@@ -128,14 +125,6 @@ public class QuartzConfig {
     }
 
     @Bean
-    public JobDetail siteHealthCheckJobDetail() {
-        return JobBuilder.newJob(SiteHealthCheckJob.class)
-                .withIdentity("siteHealthCheckJob")
-                .storeDurably()
-                .build();
-    }
-
-    @Bean
     public Trigger siteAccountSyncTrigger() {
         return TriggerBuilder.newTrigger()
                 .forJob(siteAccountSyncJobDetail())
@@ -144,12 +133,5 @@ public class QuartzConfig {
                 .build();
     }
 
-    @Bean
-    public Trigger siteHealthCheckTrigger() {
-        return TriggerBuilder.newTrigger()
-                .forJob(siteHealthCheckJobDetail())
-                .withIdentity("siteHealthCheckTrigger")
-                .withSchedule(CrawlerTimeZone.cronSchedule(healthCron))
-                .build();
-    }
+
 }
