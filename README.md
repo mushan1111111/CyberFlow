@@ -79,6 +79,12 @@ python main.py
 
 主要技术：Vue 3、Vite 6、Element Plus、Pinia、ECharts、Tailwind CSS 4；Spring Boot 3.4、Java 17、MyBatis-Plus、Spring Security、Quartz；Python 3.12、Scrapy；MySQL 8.0、RabbitMQ 3.13、Redis 7。
 
+### 支付平台风控与有效订单
+
+订单按现有增量游标采集新增记录，同时保存支付平台的 `is_alarm`（0=正常，非 0=风控，例如 10009）和 `is_valid`（0=有效，1=无效）标记。平台风控码归一化后保存在本地 `is_fraud`（1=风控，0=非风控），接口原始 `is_fraud` 不用于风控判定，不扫描或刷新历史订单标记。首页“今日风控订单”按今日下单且平台标记为风控的原始订单数量展示，遵循当前用户与组别的数据权限。
+
+去重订单统计全部订单，按邮箱或收货地址关联去重，包含平台风控订单；有效去重订单仅统计平台有效且非风控的订单。风控订单按原始笔数独立统计。标记未同步时显示“未同步”，不会推断为非风控，也不计入有效去重。邮箱格式与历史人工审核记录不再参与订单判定，订单列表支持查看和筛选平台风控状态。
+
 ## 配置
 
 以 [`.env.docker.example`](.env.docker.example) 为 Docker 配置模板。该文件列出了可覆盖的环境变量；不要将填有真实凭据的 `.env` 提交到仓库。

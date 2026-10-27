@@ -457,6 +457,20 @@ CREATE TABLE IF NOT EXISTS retired_site_info (
 -- amount: 使用 DECIMAL(10,2) 精确存储，避免浮点数精度问题
 -- admin_name / theme_name / product_category: 冗余自 site_info 表，加速查询
 -- ------------------------------------------------------------
+-- Reviews are local, append-only and bound to the order's exact normalized email.
+-- Re-syncing platform orders never overwrites these decisions.
+CREATE TABLE IF NOT EXISTS order_fraud_reviews (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_group VARCHAR(32) NOT NULL,
+    order_id BIGINT NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    decision VARCHAR(16) NOT NULL,
+    reviewer VARCHAR(100) NOT NULL,
+    note VARCHAR(500) NOT NULL,
+    reviewed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_fraud_review_order (user_group, order_id, email, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS orders (
     id                    BIGINT NOT NULL COMMENT '订单ID (来自电商平台)',
     amount                DECIMAL(10, 2) COMMENT '订单金额',
@@ -469,6 +483,8 @@ CREATE TABLE IF NOT EXISTS orders (
     shipping_email        VARCHAR(255) COMMENT '收货邮箱',
     shipping_address      JSON COMMENT '支付平台原始收货地址',
     is_valid              TINYINT COMMENT '支付平台有效标记；0 为有效',
+    is_fraud              TINYINT COMMENT '风控标记；由支付平台 is_alarm 归一化为0或1',
+    is_alarm              INT COMMENT '支付平台原始风控返回码；0为正常，非0为风控',
     dedupe_key             CHAR(64) COMMENT '邮箱或收货地址关联后的去重键',
     admin_name            VARCHAR(100) COMMENT '店铺管理员',
     user_group            VARCHAR(32) NOT NULL COMMENT '订单所属站点分组',
